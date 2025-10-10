@@ -47,46 +47,54 @@ export const performVirtualTryOn = async (
     const wearingItems = previousProducts.map(p => `- ${p.name} (${getProductCategory(p)})`);
     const productItemDescription = `${product.class} named '${product.name}'`;
 
-    let howToAdd: string;
+    let compositingInstruction: string;
+    let preservationInstruction = `The model's appearance (face, hair, skin, pose) and the background MUST NOT be altered.`;
 
     switch(category) {
         case 'Footwear':
-            howToAdd = `Digitally place the footwear (${productItemDescription}) from the product photo onto the model's feet, so they appear to be wearing them naturally.`;
+            compositingInstruction = `Composite the isolated footwear (${productItemDescription}) onto the model's feet.`;
+            preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         case 'Bottoms':
-            howToAdd = `Digitally dress the model in the bottoms (${productItemDescription}) from the product photo. The new bottoms should realistically cover the lower part of the model's bodysuit.`;
+            compositingInstruction = `Composite the isolated bottoms (${productItemDescription}) onto the model, covering them from the waist down. This should replace the lower part of the bodysuit.`;
+            preservationInstruction += ` The model's existing top garment MUST remain perfectly visible and unaltered.`
+            break;
+        case 'Base Top':
+            compositingInstruction = `Composite the isolated top (${productItemDescription}) onto the model's torso, replacing the upper part of their bodysuit.`;
+            preservationInstruction += ` The lower part of the bodysuit must remain visible and unaltered where the new top does not cover it.`
+            break;
+        case 'Outerwear':
+            compositingInstruction = `Composite the isolated outerwear (${productItemDescription}) onto the model, layering it realistically OVER their existing clothes.`;
+            preservationInstruction += ` All clothes underneath the new outerwear must be preserved and visible where appropriate (e.g., at the neckline).`
             break;
         case 'Full-body Outfit':
-            howToAdd = `Digitally dress the model in the full-body outfit (${productItemDescription}) from the product photo. The new outfit should realistically cover the model's bodysuit and any other worn items.`;
+            compositingInstruction = `Composite the isolated full-body outfit (${productItemDescription}) onto the model, replacing their bodysuit entirely.`;
             break;
-        default: // 'Base Top' or 'Outerwear'
-             howToAdd = `Digitally dress the model in the top/outerwear (${productItemDescription}) from the product photo, layering it realistically over their existing clothes.`;
+        default: 
+             compositingInstruction = `Composite the isolated garment (${productItemDescription}) onto the model over their existing clothes.`;
     }
 
-    const productDetails = `
-- **Product Name:** ${product.name}
-- **Product Type:** ${product.class} / ${product.subClass}
-`;
+    const VIRTUAL_TRY_ON_PROMPT = `You are a professional AI photo editor creating a composite image for a luxury fashion catalog. Your task is to realistically merge a garment from a product photo onto a model photo.
 
-    const VIRTUAL_TRY_ON_PROMPT = `You are a world-class AI fashion stylist. Your goal is to create a photorealistic image of a model wearing a new piece of clothing. You will be given a photo of the model, and a photo of the product.
+**Objective:** Create a seamless, photorealistic composite.
 
-**Your Task:**
-Carefully add the specified garment from the product photo onto the model in the base image.
+**Instructions:**
+1.  **Isolate Garment:** From the provided product image, you must isolate ONLY the following garment:
+    - **Product:** ${product.name}
+    - **Type:** ${product.class} / ${product.subClass}
+    - **IMPORTANT:** Ignore any other items styled in the product photo.
 
-**The Garment to Add:**
-${productDetails}
+2.  **Composite onto Model:** ${compositingInstruction} The composite must be flawless.
+    - Ensure the garment drapes and fits the model's body and pose naturally.
+    - Match lighting, shadows, and textures perfectly between the garment and the model.
 
-**How to Add It:**
-${howToAdd}
+3.  **Preserve Integrity:**
+    - ${preservationInstruction}
+    - The garment's design, color, and details must be an identical match to the product photo.
+    - List of items the model is ALREADY wearing:
+      ${wearingItems.length > 0 ? wearingItems.join('\n') : 'None'}
 
-**Key Rules for a Perfect Result:**
-1.  **Focus on One Item:** The product photo might show a full look, but you must only add the specific garment detailed above. For instance, if the product is a 'Top', ignore any pants or skirts in the product photo.
-2.  **Product Accuracy:** The added garment must be an identical copy of the one in the product photo. Preserve its design, color, texture, and how it fits.
-3.  **Model and Scene Consistency:** The model's appearance (face, body, hair, pose) and the studio background must remain exactly the same. Only the clothing should change where the new item is added.
-4.  **Layering Logic:** The model may already be wearing other items. These must be preserved correctly under or around the new garment. The items they are already wearing are:
-${wearingItems.length > 0 ? wearingItems.join('\n') : 'None'}
-
-The final image must be a complete, full-body photograph that looks completely real.`;
+The final output must be a single, full-body image that is indistinguishable from a real photograph.`;
   
   console.log('[Virtual Try-On] Using refined image generation prompt:', VIRTUAL_TRY_ON_PROMPT);
 
@@ -134,8 +142,10 @@ The final image must be a complete, full-body photograph that looks completely r
     console.error(`[Virtual Try-On] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
 
     let errorMessage = "Virtual try-on failed. The model did not return a valid image response.";
+    // FIX: The `FinishReason` type from the SDK does not contain 'IMAGE_SAFETY' or 'IMAGE_OTHER'.
+    // The correct check for a safety block is just 'SAFETY'.
     if (blockReason === 'SAFETY') {
-        errorMessage = "The request was blocked due to safety policies. Please try a different product or model image.";
+        errorMessage = "The request was blocked by safety filters. This can sometimes happen with certain garments or poses. Please try a different product or model.";
     } else if (response.text) {
         errorMessage = `Virtual try-on failed. Details: ${response.text}`;
     }
