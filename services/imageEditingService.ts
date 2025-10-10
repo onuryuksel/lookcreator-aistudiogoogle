@@ -52,7 +52,7 @@ const ART_DIRECTOR_PROMPT_SCHEMA = {
             properties: {
                 color_grading: { type: Type.STRING },
                 filters: { type: Type.STRING },
-                skin_retouching: { type: Type.STRING },
+                skin_retouching: { type: Type.STRING, description: "e.g., 'Natural, minimal retouching to preserve skin texture. Avoid an overly smooth, artificial look.'" },
                 product_enhancement: { type: Type.STRING },
                 output: { type: Type.STRING }
             }
@@ -64,7 +64,7 @@ const ART_DIRECTOR_PROMPT_SCHEMA = {
                 wardrobe_styling: { type: Type.STRING, description: "Notes on how the outfit should be worn." },
                 set_design: { type: Type.STRING },
                 atmosphere: { type: Type.STRING },
-                brand_consistency: { type: Type.STRING, description: "How this shoot aligns with a luxury brand like Ounass." }
+                brand_consistency: { type: Type.STRING, description: "How this shoot aligns with a luxury brand like Ounass, focusing on authenticity and hyperrealism." }
             }
         },
         model_direction: {
@@ -72,7 +72,7 @@ const ART_DIRECTOR_PROMPT_SCHEMA = {
             properties: {
                 characteristics: { type: Type.STRING, description: "Based on the model in the image." },
                 posing: { type: Type.STRING, description: "A new, dynamic pose suitable for the scene." },
-                expressions: { type: Type.STRING },
+                expressions: { type: Type.STRING, description: "Subtle, natural, and authentic expressions. Avoid anything exaggerated or artificial." },
                 body_language: { type: Type.STRING },
                 interaction: { type: Type.STRING, description: "How the model interacts with the environment." },
                 hair_makeup: {
@@ -102,6 +102,8 @@ You are an AI Art Director for a world-renowned luxury fashion brand, creating a
 Your task is to take a user's creative brief and a fashion look, and generate a comprehensive, highly creative, and professional photoshoot plan.
 The output MUST be a JSON object that strictly adheres to the provided schema.
 
+**Core Objective: Hyperrealism.** The final image must be indistinguishable from a high-end photograph. Pay meticulous attention to creating a natural, lifelike model, especially in the face, expression, and skin texture. Your plan must facilitate this realism.
+
 **Analysis Task:**
 1.  **Analyze the User Brief:**
     - Location: ${userInput.location || 'Not specified'}
@@ -123,8 +125,8 @@ Based on your expert analysis, create the ultimate photoshoot concept.
     *   If the user specified a location: Elevate their idea. Expand on it with rich, sensory details that evoke a sense of luxury and exclusivity. Describe the specific textures, architecture, and atmosphere.
     *   If the user did NOT specify a location: This is your moment to shine. **Invent a breathtaking, unique, and perfectly suitable location.** Do NOT use a generic list. Think like a location scout for Vogue. Consider the outfit's story. Is it a minimalist architectural masterpiece, a secluded private beach, a vibrant and historic city street, or a lavish interior? Describe this imagined location with vivid detail.
 
-*   **Model Pose:** The model's pose MUST be completely new and different from the static studio shot. It must be a dynamic, natural, and elegant pose that perfectly fits the new scene and mood.
-*   **Completeness:** Fill out every single field in the JSON schema with expert, creative, and detailed information. Your choices for lighting, camera, composition, and post-production should all work together to tell a cohesive, luxurious story.
+*   **Model Pose & Expression:** The model's pose MUST be completely new and different from the static studio shot. It must be a dynamic, natural, and elegant pose. The facial expression must be subtle and authentic, avoiding any hint of artificiality.
+*   **Completeness:** Fill out every single field in the JSON schema with expert, creative, and detailed information. Your choices for lighting, camera, composition, and post-production should all work together to tell a cohesive, luxurious story focused on achieving hyperrealism.
 `.trim();
     
     console.log('[AI Art Director] Sending prompt generation request...');
@@ -150,13 +152,14 @@ export const generateLifestyleImage = async (
   const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
   
   const finalGenerationPrompt = `
-**TASK: Create a photorealistic lifestyle image based on a professional art director's plan.**
+**TASK: Create a hyperrealistic lifestyle image based on a professional art director's plan.**
 
 **CRITICAL RULES:**
 1.  **IDENTICAL MODEL & OUTFIT:** The model's face, body, hair, and the complete outfit (including all clothing items and accessories) must be transferred FLAWLESSLY and IDENTICALLY from the original image to the new scene. DO NOT change the model or their clothes.
 2.  **EXECUTE THE PLAN:** You MUST follow the detailed JSON brief provided. This includes the new scene, lighting, camera angle, and a new model pose as described in the 'model_direction'.
 3.  **REALISTIC SCENE INTEGRATION:** The model must be seamlessly and realistically integrated into the new background. Pay close attention to lighting, shadows, and perspective to make it look like a real photograph.
 4.  **HIGH-END PHOTOGRAPHY STYLE:** The final image should look like a professional, high-fashion lifestyle photograph. It should be high-resolution, well-composed, and visually appealing.
+5.  **AVOID ARTIFICIALITY (MOST IMPORTANT):** The model’s face, skin texture, and expression must appear completely natural and human. Avoid any hint of a 'generated', 'plastic', or 'uncanny' look. The final result must be indistinguishable from a real photo.
 
 **Art Director's Plan (JSON):**
 ${JSON.stringify(artDirectorPrompt, null, 2)}
