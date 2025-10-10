@@ -150,6 +150,7 @@ const App: React.FC = () => {
                     onBack={() => setCurrentView('lookbook')} 
                     onDelete={handleLookDeleted} 
                     onNavigateToEdit={handleNavigateToEdit}
+                    onUpdateLook={handleLookUpdated}
                   />
         }
         return null;

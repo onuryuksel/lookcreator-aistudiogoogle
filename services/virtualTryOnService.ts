@@ -211,8 +211,6 @@ Return ONLY the complete, full-body, modified image.
     return `data:${generatedMimeType};base64,${generatedBase64}`;
 };
 
-// FIX: Added a new service function to handle conversational image editing.
-// This function takes a base image and a text prompt to generate an edited image using Gemini.
 export const editImageWithPrompt = async (
   baseImage: string,
   prompt: string

@@ -35,7 +35,7 @@ const TryOnSequence: React.FC<TryOnSequenceProps> = ({ steps, isGenerating, onRe
               <h4 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Model</h4>
               <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700 overflow-hidden">
                 {step.inputImage ? (
-                  <img src={step.inputImage} alt="Input model" className="w-full h-full object-cover" />
+                  <img src={step.inputImage} alt="Input model" className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">Waiting...</div>
                 )}
@@ -55,7 +55,7 @@ const TryOnSequence: React.FC<TryOnSequenceProps> = ({ steps, isGenerating, onRe
               <h4 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Result</h4>
               <div className="relative w-full aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700 overflow-hidden">
                 {step.status === 'generating' && <div className="absolute inset-0 flex items-center justify-center"><Spinner /></div>}
-                {step.status === 'completed' && <img src={step.outputImage} alt={`Try-on step ${index + 1}`} className="w-full h-full object-cover" />}
+                {step.status === 'completed' && <img src={step.outputImage} alt={`Try-on step ${index + 1}`} className="w-full h-full object-contain" />}
                 {step.status === 'failed' && <div className="absolute inset-0 flex items-center justify-center text-red-500 font-semibold bg-red-50 dark:bg-red-900/40">Failed</div>}
                 {step.status === 'pending' && <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800"></div>}
               </div>

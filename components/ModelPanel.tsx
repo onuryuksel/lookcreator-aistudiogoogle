@@ -30,12 +30,14 @@ const ModelPanel: React.FC<ModelPanelProps> = ({
                         onClick={() => onSelectModel(model.id!)}
                         className={`flex items-center p-2 rounded-lg cursor-pointer transition-all border-2 ${selectedModelId === model.id ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-800 dark:border-zinc-300' : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
                     >
-                        <img
-                            src={model.imageUrl}
-                            alt={model.name}
-                            onClick={(e) => { e.stopPropagation(); onOpenImageModal(model.imageUrl); }}
-                            className="w-16 h-20 object-cover rounded-md mr-4 flex-shrink-0 cursor-pointer"
-                        />
+                        <div className="w-16 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-md mr-4 flex-shrink-0 overflow-hidden" >
+                            <img
+                                src={model.imageUrl}
+                                alt={model.name}
+                                onClick={(e) => { e.stopPropagation(); onOpenImageModal(model.imageUrl); }}
+                                className="w-full h-full object-contain cursor-pointer"
+                            />
+                        </div>
                         <div className="flex-grow">
                             <p className="font-semibold">{model.name}</p>
                             <p className="text-sm text-zinc-500 dark:text-zinc-400">{model.ageAppearance}, {model.height}</p>

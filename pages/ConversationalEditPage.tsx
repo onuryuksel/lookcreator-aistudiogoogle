@@ -20,10 +20,10 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
     if (!prompt.trim()) return;
 
     setIsGenerating(true);
-    setGeneratedImage(null);
     setError(null);
     try {
-      const result = await editImageWithPrompt(generatedImage || look.finalImage, prompt);
+      const imageToEdit = generatedImage || look.finalImage;
+      const result = await editImageWithPrompt(imageToEdit, prompt);
       setGeneratedImage(result);
     } catch (err) {
       console.error('Error during conversational edit:', err);
@@ -36,9 +36,14 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
 
   const handleSave = () => {
     if (!generatedImage) return;
-    const updatedLook = {
+
+    const baseVariations = look.variations || [look.finalImage];
+    // Use Set to ensure variations are unique before saving
+    const newVariations = [...new Set([...baseVariations, generatedImage])];
+    
+    const updatedLook: Look = {
       ...look,
-      finalImage: generatedImage,
+      variations: newVariations,
     };
     onSave(updatedLook);
   };
@@ -52,7 +57,7 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                 <ChevronLeftIcon /> Back to Look Details
             </Button>
             <Button onClick={handleSave} disabled={!generatedImage || isGenerating}>
-                <SaveIcon /> Save Changes
+                <SaveIcon /> Save as Variation
             </Button>
         </div>
 
@@ -87,7 +92,7 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                 <img 
                     src={currentImage} 
                     alt="Image being edited" 
-                    className="w-full h-full object-cover" 
+                    className="w-full h-full object-contain" 
                 />
             </div>
         </div>

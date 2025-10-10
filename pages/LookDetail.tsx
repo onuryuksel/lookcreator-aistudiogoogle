@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
 import { Button, Dropdown, DropdownItem } from '../components/common';
@@ -9,14 +9,27 @@ interface LookDetailProps {
   onBack: () => void;
   onDelete: (id: number) => void;
   onNavigateToEdit: (id: number) => void;
+  onUpdateLook: (updatedLook: Look) => void;
 }
 
-const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavigateToEdit }) => {
+const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavigateToEdit, onUpdateLook }) => {
+  const [activeImage, setActiveImage] = useState(look.finalImage);
+
   const handleDelete = () => {
     if (window.confirm('Are you sure you want to delete this look? This action cannot be undone.')) {
       onDelete(look.id!);
     }
   };
+
+  const handleSetAsMain = (imageUrl: string) => {
+    if (look.finalImage === imageUrl) return;
+    const updatedLook = { ...look, finalImage: imageUrl };
+    onUpdateLook(updatedLook);
+    setActiveImage(imageUrl);
+  };
+  
+  const variationsToShow = [...new Set([look.finalImage, ...(look.variations || [])])];
+
 
   return (
     <div>
@@ -50,7 +63,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavig
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         <div className="md:col-span-1">
           <div className="relative aspect-[3/4] bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
-            <img src={look.finalImage} alt="Final look" className="w-full h-full object-cover" />
+            <img src={activeImage} alt="Final look" className="w-full h-full object-contain" />
           </div>
         </div>
 
@@ -71,6 +84,38 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavig
                 <p className="text-sm text-zinc-500">No products are associated with this look.</p>
               )}
             </div>
+            
+            {variationsToShow.length > 1 && (
+              <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-700">
+                <h3 className="text-lg font-semibold mb-4">Variations</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {variationsToShow.map((variation, index) => (
+                    <div
+                      key={index}
+                      onClick={() => setActiveImage(variation)}
+                      className={`relative group aspect-square bg-zinc-100 dark:bg-zinc-800 rounded-md cursor-pointer overflow-hidden border-2 transition-all ${activeImage === variation ? 'border-zinc-800 dark:border-zinc-200' : 'border-transparent hover:border-zinc-400 dark:hover:border-zinc-500'}`}
+                    >
+                      <img
+                        src={variation}
+                        alt={`Variation ${index + 1}`}
+                        className="w-full h-full object-contain"
+                      />
+                      {activeImage === variation && look.finalImage !== variation && (
+                         <div className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleSetAsMain(variation); }}
+                                className="px-2 py-1 text-xs font-semibold rounded-md bg-white/80 dark:bg-black/60 backdrop-blur-sm text-zinc-900 dark:text-zinc-100 hover:bg-white dark:hover:bg-black transition-all shadow-md"
+                            >
+                                Set as Main
+                            </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </div>
