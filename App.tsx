@@ -78,13 +78,31 @@ const App: React.FC = () => {
 
   const handleSaveLook = async (newLookData: Omit<Look, 'id'>) => {
     try {
-        const newLookWithId = await dbService.add<Look>('looks', newLookData);
+        const lookToSave = {
+            ...newLookData,
+            variations: [newLookData.finalImage], // Initialize variations
+        };
+        const newLookWithId = await dbService.add<Look>('looks', lookToSave);
         setLooks(prevLooks => [newLookWithId, ...prevLooks].sort((a,b) => b.createdAt - a.createdAt));
         alert('Look saved to Lookbook!');
         setCurrentPage('lookbook');
     } catch (error) {
         console.error("Failed to save look:", error);
         alert("Error: Could not save look to the database.");
+    }
+  };
+
+  const handleUpdateLook = async (updatedLook: Look) => {
+    try {
+        await dbService.put<Look>('looks', updatedLook);
+        setLooks(prevLooks => 
+            prevLooks.map(look => 
+                look.id === updatedLook.id ? updatedLook : look
+            ).sort((a,b) => b.createdAt - a.createdAt)
+        );
+    } catch (error) {
+        console.error("Failed to update look:", error);
+        alert("Error: Could not update look in the database.");
     }
   };
 
@@ -182,7 +200,11 @@ const App: React.FC = () => {
       case 'lookbook':
         const selectedLook = looks.find(l => l.id === selectedLookId);
         if (selectedLook) {
-          return <LookDetail look={selectedLook} onBack={() => setSelectedLookId(null)} />;
+          return <LookDetail 
+                    look={selectedLook} 
+                    onBack={() => setSelectedLookId(null)} 
+                    onLookUpdated={handleUpdateLook}
+                 />;
         }
         return <Lookbook 
                   looks={looks} 

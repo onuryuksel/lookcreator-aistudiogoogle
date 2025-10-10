@@ -1,4 +1,4 @@
-
+// FIX: Removed a self-import of the 'OunassSKU' type. This was causing a name conflict because the type is defined within this same file.
 export interface OunassSKU {
   id: number;
   sku: string;
@@ -50,4 +50,5 @@ export interface Look {
   products: OunassSKU[];
   baseImage: string; // base64 image of user or model
   createdAt: number;
+  variations?: string[]; // Array of base64 images
 }
