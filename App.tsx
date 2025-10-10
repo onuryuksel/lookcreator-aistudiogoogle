@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CreatorStudio from './pages/CreatorStudio';
 import Lookbook from './pages/Lookbook';
+import LookDetail from './pages/LookDetail';
 import { WandSparklesIcon, BookOpenIcon, SunIcon, MoonIcon, DesktopIcon } from './components/Icons';
 import { Look, Model } from './types';
 import * as dbService from './services/dbService';
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [looks, setLooks] = useState<Look[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLookId, setSelectedLookId] = useState<number | null>(null);
 
   // --- Data Loading ---
   const loadData = async () => {
@@ -54,6 +56,11 @@ const App: React.FC = () => {
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
+
+  const handleSetCurrentPage = (page: Page) => {
+    setSelectedLookId(null); // Reset look detail view when switching main pages
+    setCurrentPage(page);
+  };
 
   const handleThemeToggle = () => {
     setTheme(prevTheme => {
@@ -173,10 +180,15 @@ const App: React.FC = () => {
                   onModelDeleted={handleDeleteModel}
                />;
       case 'lookbook':
+        const selectedLook = looks.find(l => l.id === selectedLookId);
+        if (selectedLook) {
+          return <LookDetail look={selectedLook} onBack={() => setSelectedLookId(null)} />;
+        }
         return <Lookbook 
                   looks={looks} 
                   onLooksExport={() => handleExport('looks', 'looks.json')}
                   onLooksImport={handleImportLooks}
+                  onSelectLook={(id) => setSelectedLookId(id)}
                 />;
       default:
         return <CreatorStudio 
@@ -190,7 +202,7 @@ const App: React.FC = () => {
 
   const NavItem = ({ page, label, icon }: { page: Page; label: string; icon: React.ReactNode }) => (
     <button
-      onClick={() => setCurrentPage(page)}
+      onClick={() => handleSetCurrentPage(page)}
       className={`flex flex-col items-center justify-center w-full py-4 transition-colors duration-200 group ${
         currentPage === page ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
       }`}
