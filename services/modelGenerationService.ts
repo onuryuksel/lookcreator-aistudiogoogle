@@ -26,8 +26,8 @@ ABSOLUTELY NO cropped images, NO cut-off feet or legs, NO half-body shots, NO po
 
 export const generateModelFromForm = async (formData: Omit<Model, 'imageUrl' | 'id'>): Promise<{imageUrl: string, name: string}> => {
   const clothing = formData.gender === 'Male'
-    ? 'wearing a skin-tone matching fitted t-shirt and shorts.'
-    : 'wearing a skin-tone matching, minimal and elegant bodysuit.';
+    ? 'wearing a neutral light grey (#D3D3D3) fitted t-shirt and shorts.'
+    : 'wearing a neutral light grey (#D3D3D3), minimal and elegant bodysuit.';
 
   const facialHairPrompt = formData.gender === 'Male' && formData.facialHair !== 'None'
     ? `- Facial Hair: ${formData.facialHair}`
@@ -138,8 +138,8 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
   }
 
   const clothingPrompt = metadata.gender.toLowerCase() === 'male'
-    ? 'a skin-tone matching fitted t-shirt and shorts.'
-    : 'a skin-tone matching, minimal and elegant bodysuit.';
+    ? 'a neutral light grey (#D3D3D3) fitted t-shirt and shorts.'
+    : 'a neutral light grey (#D3D3D3), minimal and elegant bodysuit.';
     
   const modelSpecifics = `
 - **IDENTITY**: Re-create the person from the reference image IDENTICALLY. Match their facial features, skin tone, estimated height (${metadata.height}), age appearance, hair color, hairstyle, body shape, and any facial hair.
@@ -163,13 +163,29 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
     },
   });
   
-  const textPart = imageResponse.candidates[0].content.parts.find(p => p.text);
+  const candidate = imageResponse.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Model Gen] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Model creation failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies. Please try a different photo.";
+    } else if (imageResponse.text) {
+        errorMessage = `Model creation failed. Details: ${imageResponse.text}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const textPart = candidate.content.parts.find(p => p.text);
   if (textPart) {
     console.log("[Gemini Service] Received AI Text Response (Image Gen):", textPart.text);
   }
 
-  const generatedPart = imageResponse.candidates[0].content.parts.find(p => p.inlineData);
-  if (!generatedPart || !generatedPart.inlineData) throw new Error("Image generation failed");
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
+  if (!generatedPart || !generatedPart.inlineData) throw new Error("Image generation failed. The model returned text but no image.");
+
 
   const base64Image = generatedPart.inlineData.data;
   const mimeType = generatedPart.inlineData.mimeType;

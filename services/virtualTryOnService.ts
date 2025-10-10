@@ -44,24 +44,23 @@ export const performVirtualTryOn = async (
 ): Promise<string> => {
     
     const category = getProductCategory(product);
-    const modelGarment = model.gender === 'Male' ? 't-shirt and shorts' : 'bodysuit';
     const wearingItems = previousProducts.map(p => `- ${p.name} (${getProductCategory(p)})`);
     const productItemDescription = `${product.class} named '${product.name}'`;
 
-    let primaryTask: string;
+    let howToAdd: string;
 
     switch(category) {
         case 'Footwear':
-            primaryTask = `Digitally TRANSFER the footwear (${productItemDescription}) from the product photo onto the model, replacing the model's bare feet.`;
+            howToAdd = `Digitally place the footwear (${productItemDescription}) from the product photo onto the model's feet, so they appear to be wearing them naturally.`;
             break;
         case 'Bottoms':
-            primaryTask = `Digitally TRANSFER the bottoms (${productItemDescription}) from the product photo onto the model, replacing the lower part of the ${modelGarment} or any existing bottoms.`;
+            howToAdd = `Digitally dress the model in the bottoms (${productItemDescription}) from the product photo. The new bottoms should realistically cover the lower part of the model's bodysuit.`;
             break;
         case 'Full-body Outfit':
-            primaryTask = `Digitally TRANSFER the full-body outfit (${productItemDescription}) shown in the product photo onto the model, replacing the underlying ${modelGarment} and any other worn items.`;
+            howToAdd = `Digitally dress the model in the full-body outfit (${productItemDescription}) from the product photo. The new outfit should realistically cover the model's bodysuit and any other worn items.`;
             break;
         default: // 'Base Top' or 'Outerwear'
-             primaryTask = `Digitally LAYER the top/outerwear (${productItemDescription}) from the product photo over the model's existing clothes.`;
+             howToAdd = `Digitally dress the model in the top/outerwear (${productItemDescription}) from the product photo, layering it realistically over their existing clothes.`;
     }
 
     const productDetails = `
@@ -69,25 +68,25 @@ export const performVirtualTryOn = async (
 - **Product Type:** ${product.class} / ${product.subClass}
 `;
 
-    const VIRTUAL_TRY_ON_PROMPT = `You are a digital tailor specializing in hyper-realistic virtual try-on. Your task is to transfer a SINGLE SPECIFIC garment from a product image onto a model's image with absolute precision.
+    const VIRTUAL_TRY_ON_PROMPT = `You are a world-class AI fashion stylist. Your goal is to create a photorealistic image of a model wearing a new piece of clothing. You will be given a photo of the model, and a photo of the product.
 
-**PRIME DIRECTIVE: FLAWLESS REPLICATION OF A SINGLE ITEM.**
+**Your Task:**
+Carefully add the specified garment from the product photo onto the model in the base image.
 
-**THE SPECIFIC GARMENT TO TRANSFER:**
-You must identify and transfer ONLY the following item from the product image. IGNORE any other garments or accessories shown in the product photo.
+**The Garment to Add:**
 ${productDetails}
 
-**PRIMARY TASK:**
-${primaryTask}
+**How to Add It:**
+${howToAdd}
 
-**CRITICAL RULES:**
-1.  **TRANSFER ONLY THE SPECIFIED GARMENT (MOST IMPORTANT RULE):** The product photo may show a full outfit, but you must ONLY transfer the specific item detailed above. For example, if the product is a 'Top', you must ignore any pants, skirts, or shorts in the product photo.
-2.  **DO NOT ALTER THE PRODUCT:** The garment you transfer must be an IDENTICAL copy of the one in the product photo in terms of design, color, texture, and fit.
-3.  **PRESERVE MODEL & BACKGROUND:** The model's face, physical characteristics, hair, pose, and the background must remain IDENTICAL to the base image. Only the clothing being replaced should change.
-4.  **PRESERVE EXISTING ITEMS:** The model is already wearing these items. They MUST be perfectly preserved under or around the new garment:
+**Key Rules for a Perfect Result:**
+1.  **Focus on One Item:** The product photo might show a full look, but you must only add the specific garment detailed above. For instance, if the product is a 'Top', ignore any pants or skirts in the product photo.
+2.  **Product Accuracy:** The added garment must be an identical copy of the one in the product photo. Preserve its design, color, texture, and how it fits.
+3.  **Model and Scene Consistency:** The model's appearance (face, body, hair, pose) and the studio background must remain exactly the same. Only the clothing should change where the new item is added.
+4.  **Layering Logic:** The model may already be wearing other items. These must be preserved correctly under or around the new garment. The items they are already wearing are:
 ${wearingItems.length > 0 ? wearingItems.join('\n') : 'None'}
 
-The final output must be a single, complete, full-body image that looks like a real photograph.`;
+The final image must be a complete, full-body photograph that looks completely real.`;
   
   console.log('[Virtual Try-On] Using refined image generation prompt:', VIRTUAL_TRY_ON_PROMPT);
 
@@ -128,12 +127,28 @@ The final output must be a single, complete, full-body image that looks like a r
     },
   });
 
-  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
-  if (!generatedPart || !generatedPart.inlineData) {
-    const textPart = response.candidates[0].content.parts.find(p => p.text);
-    console.error("[Virtual Try-On] Image generation failed. Text response:", textPart?.text);
-    throw new Error("Virtual try-on failed. The model did not return an image.");
+  const candidate = response.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Virtual Try-On] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Virtual try-on failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies. Please try a different product or model image.";
+    } else if (response.text) {
+        errorMessage = `Virtual try-on failed. Details: ${response.text}`;
+    }
+    throw new Error(errorMessage);
   }
+
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
+  if (!generatedPart || !generatedPart.inlineData) {
+    const textPart = candidate.content.parts.find(p => p.text);
+    console.error("[Virtual Try-On] Image generation failed. Text response:", textPart?.text);
+    throw new Error("Virtual try-on failed. The model returned text but no image.");
+  }
+
 
   const base64Image = generatedPart.inlineData.data;
   const mimeType = generatedPart.inlineData.mimeType;

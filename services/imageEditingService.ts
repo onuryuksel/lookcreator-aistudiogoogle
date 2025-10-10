@@ -152,14 +152,15 @@ export const generateLifestyleImage = async (
   const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
   
   const finalGenerationPrompt = `
-**TASK: Create a hyperrealistic lifestyle image based on a professional art director's plan.**
+You are an AI photographer creating a hyperrealistic lifestyle image based on a professional art director's plan.
 
-**CRITICAL RULES:**
-1.  **IDENTICAL MODEL & OUTFIT:** The model's face, body, hair, and the complete outfit (including all clothing items and accessories) must be transferred FLAWLESSLY and IDENTICALLY from the original image to the new scene. DO NOT change the model or their clothes.
-2.  **EXECUTE THE PLAN:** You MUST follow the detailed JSON brief provided. This includes the new scene, lighting, camera angle, and a new model pose as described in the 'model_direction'.
-3.  **REALISTIC SCENE INTEGRATION:** The model must be seamlessly and realistically integrated into the new background. Pay close attention to lighting, shadows, and perspective to make it look like a real photograph.
-4.  **HIGH-END PHOTOGRAPHY STYLE:** The final image should look like a professional, high-fashion lifestyle photograph. It should be high-resolution, well-composed, and visually appealing.
-5.  **AVOID ARTIFICIALITY (MOST IMPORTANT):** The model’s face, skin texture, and expression must appear completely natural and human. Avoid any hint of a 'generated', 'plastic', or 'uncanny' look. The final result must be indistinguishable from a real photo.
+**Your Goal:** Produce a new photograph featuring the *exact same model and outfit* from the original image, but place them in the new scene described in the Art Director's Plan. The model should adopt the new pose and expression from the plan.
+
+**Key Rules for a Flawless Photo:**
+1.  **Model & Outfit Consistency:** It is crucial that the model (their face, body, hair) and their complete outfit are identical to the original image. You are changing the setting and pose, not the person or what they're wearing.
+2.  **Follow the Art Director's Plan:** The provided JSON plan is your guide. You must adhere to its specifications for the new scene, lighting, camera work, and model direction.
+3.  **Seamless Integration:** The model must look like they were naturally photographed in the new environment. Pay close attention to realistic lighting, shadows, and perspective.
+4.  **Hyperrealism is Key:** The final image must be indistinguishable from a real, high-fashion photograph. The model's face and skin must look completely natural and human, with no 'AI-generated' artifacts.
 
 **Art Director's Plan (JSON):**
 ${JSON.stringify(artDirectorPrompt, null, 2)}
@@ -182,11 +183,26 @@ Now, generate the final image.
     },
   });
 
-  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
+  const candidate = response.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Lifestyle Shoot] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Lifestyle image generation failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies. Please adjust your creative brief.";
+    } else if (response.text) {
+        errorMessage = `Lifestyle image generation failed. Details: ${response.text}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
   if (!generatedPart || !generatedPart.inlineData) {
-    const textPart = response.candidates[0].content.parts.find(p => p.text);
+    const textPart = candidate.content.parts.find(p => p.text);
     console.error("[Lifestyle Shoot] Image generation failed. Text response:", textPart?.text);
-    throw new Error("Lifestyle image generation failed. The model did not return an image.");
+    throw new Error("Lifestyle image generation failed. The model returned text but no image.");
   }
 
   const base64Image = generatedPart.inlineData.data;
@@ -221,11 +237,26 @@ export const changeImageAspectRatio = async (
     },
   });
 
-  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
+  const candidate = response.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Aspect Ratio Change] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Aspect ratio change failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies.";
+    } else if (response.text) {
+        errorMessage = `Aspect ratio change failed. Details: ${response.text}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
   if (!generatedPart || !generatedPart.inlineData) {
-    const textPart = response.candidates[0].content.parts.find(p => p.text);
+    const textPart = candidate.content.parts.find(p => p.text);
     console.error("[Aspect Ratio Change] Image generation failed. Text response:", textPart?.text);
-    throw new Error("Aspect ratio change failed. The model did not return an image.");
+    throw new Error("Aspect ratio change failed. The model returned text but no image.");
   }
 
   const base64Image = generatedPart.inlineData.data;
@@ -236,13 +267,14 @@ export const changeImageAspectRatio = async (
 
 // --- Other Editing Functions (Unchanged) ---
 const EDIT_PROMPT_TEMPLATE = `
-**TASK: Edit the base image based on the user's prompt.**
-**CRITICAL RULES:**
-1.  **PRESERVE UNCHANGED AREAS:** The model's identity, pose, and the background must remain IDENTICAL unless the prompt specifically requests to change them.
-2.  **APPLY EDITS REALISTICALLY:** The edits must be photorealistic and seamlessly integrated into the image.
-3.  **MAINTAIN HIGH QUALITY:** The output image must be high-resolution and free of artifacts.
-**USER PROMPT:** "{PROMPT}"
-Analyze the base image and apply the changes described in the user prompt.
+You are an AI photo editor. Your task is to perform a photorealistic edit on the provided image based on the user's instructions.
+
+**Key Rules for a Great Edit:**
+1.  **Respect the Original:** Do not change the model's identity, pose, or the background unless the user's prompt specifically asks for it.
+2.  **Seamless Changes:** Any edits must be blended realistically into the image.
+3.  **High-Quality Output:** The final image must be high-resolution and free of digital errors.
+
+**User's Edit Request:** "{PROMPT}"
 `;
 
 export const editImageWithPrompt = async (
@@ -267,11 +299,26 @@ export const editImageWithPrompt = async (
     },
   });
 
-  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
+  const candidate = response.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Image Editing] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Image editing failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies. Please try a different prompt.";
+    } else if (response.text) {
+        errorMessage = `Image editing failed. Details: ${response.text}`;
+    }
+    throw new Error(errorMessage);
+  }
+  
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
   if (!generatedPart || !generatedPart.inlineData) {
-    const textPart = response.candidates[0].content.parts.find(p => p.text);
+    const textPart = candidate.content.parts.find(p => p.text);
     console.error("[Image Editing] Image generation failed. Text response:", textPart?.text);
-    throw new Error("Image editing failed. The model did not return an image.");
+    throw new Error("Image editing failed. The model returned text but no image.");
   }
 
   const base64Image = generatedPart.inlineData.data;
@@ -286,7 +333,7 @@ export const editImageWithImageAndPrompt = async (
 ): Promise<string> => {
   const baseImagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
   const guideImageParts = await filesToGenerativeParts([guideImage]);
-  const fullPrompt = EDIT_PROMPT_TEMPLATE.replace('{PROMPT}', prompt) + "\n\n**ADDITIONAL INSTRUCTION:** Use the second image provided as a visual reference for the style, color, or object to add.";
+  const fullPrompt = EDIT_PROMPT_TEMPLATE.replace('{PROMPT}', prompt) + "\n\n**Additional Guidance:** Use the second image provided as a visual reference for the style, color, or object to add.";
 
   console.log('[Image Editing] Sending prompt with image guide:', fullPrompt);
 
@@ -304,11 +351,26 @@ export const editImageWithImageAndPrompt = async (
     },
   });
 
-  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
+  const candidate = response.candidates?.[0];
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    const blockReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+    console.error(`[Image Editing] Generation failed. Block Reason: ${blockReason}`, { safetyRatings });
+
+    let errorMessage = "Image editing with guide failed. The model did not return a valid image response.";
+    if (blockReason === 'SAFETY') {
+        errorMessage = "The request was blocked due to safety policies. Please try a different prompt or guide image.";
+    } else if (response.text) {
+        errorMessage = `Image editing with guide failed. Details: ${response.text}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const generatedPart = candidate.content.parts.find(p => p.inlineData);
   if (!generatedPart || !generatedPart.inlineData) {
-    const textPart = response.candidates[0].content.parts.find(p => p.text);
+    const textPart = candidate.content.parts.find(p => p.text);
     console.error("[Image Editing] Image generation failed. Text response:", textPart?.text);
-    throw new Error("Image editing with guide failed. The model did not return an image.");
+    throw new Error("Image editing with guide failed. The model returned text but no image.");
   }
 
   const base64Image = generatedPart.inlineData.data;
