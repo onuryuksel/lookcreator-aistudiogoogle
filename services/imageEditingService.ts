@@ -3,22 +3,6 @@ import { Look, LifestyleShootUserInput, ArtDirectorPrompt } from '../types';
 import { ai, base64ToGenerativePart, filesToGenerativeParts } from './geminiUtils';
 
 // --- START: Lifestyle Shoot Constants ---
-const ICONIC_LOCATIONS_CONTEXT = `
-ICONIC CITIES: Paris, Milan, NYC, London, Tokyo, Dubai, Los Angeles, Hong Kong, Rome, Istanbul, Barcelona, Marrakech, Vienna, Cape Town, Sydney
-ICONIC OUTDOOR LOCATIONS: Santorini cliffs, Amalfi Coast, Central Park NYC, Dubai Desert, Jardin des Tuileries Paris, Cinque Terre, Shibuya Crossing, Lake Como, Cappadocia, Joshua Tree, Swiss Alps
-ICONIC HOTELS: Ritz Paris, Burj Al Arab Dubai, Plaza Athénée Paris, Peninsula Hong Kong, Aman Tokyo, Gritti Palace Venice, Beverly Hills Hotel, La Mamounia Marrakech
-ICONIC RESTAURANTS: Noma Copenhagen, Cipriani Venice, Le Jules Verne Paris, Zuma Dubai, Caviar Kaspia Paris, Nobu Malibu, Sketch London
-ICONIC MONUMENTS: Eiffel Tower, Colosseum, Statue of Liberty, Burj Khalifa, Taj Mahal, Big Ben, Arc de Triomphe, Sagrada Familia
-ICONIC SQUARES: Times Square, Piazza San Marco Venice, Place Vendôme Paris, Trafalgar Square London, Red Square Moscow
-ICONIC INTERIORS: Versailles Hall of Mirrors, Louvre galleries, Met Museum NYC, Milan Cathedral, Royal Opera House London
-ICONIC BRIDGES: Pont Alexandre III Paris, Brooklyn Bridge NYC, Golden Gate Bridge, Tower Bridge London, Rialto Bridge Venice
-ICONIC BEACHES: Bondi Beach, Whitehaven Beach, Seychelles, Malibu Beach, Navagio Beach Greece
-ICONIC SHOPPING: Champs-Élysées, Rodeo Drive, Bond Street, Ginza Tokyo, Via Montenapoleone Milan, Fifth Avenue NYC
-ICONIC ROOFTOPS: Sky Garden London, The Roof NYC, Cé La Vie Singapore, View at The Palm Dubai
-ICONIC VIEWPOINTS: Top of the Rock NYC, Montmartre Paris, The Peak Hong Kong, Table Mountain Cape Town
-WINTER LOCATIONS: St. Moritz, Aspen, Courchevel, Zermatt, Lapland Northern Lights
-`.trim();
-
 const ART_DIRECTOR_PROMPT_SCHEMA = {
     type: Type.OBJECT,
     properties: {
@@ -114,12 +98,9 @@ export const generateArtDirectorPrompt = async (
     const outfitDescription = getOutfitDescription(look);
 
     const artDirectorSystemPrompt = `
-You are an AI Art Director for a luxury fashion brand like Ounass.
-Your task is to take a user's creative brief and a description of a fashion look, and generate a comprehensive, professional photoshoot plan.
-You must return your plan as a JSON object that strictly adheres to the provided schema.
-
-**Context of Iconic Locations (for inspiration if the user doesn't provide a location):**
-${ICONIC_LOCATIONS_CONTEXT}
+You are an AI Art Director for a world-renowned luxury fashion brand, creating a concept for a seasonal lookbook or a top-tier magazine photoshoot.
+Your task is to take a user's creative brief and a fashion look, and generate a comprehensive, highly creative, and professional photoshoot plan.
+The output MUST be a JSON object that strictly adheres to the provided schema.
 
 **Analysis Task:**
 1.  **Analyze the User Brief:**
@@ -135,12 +116,15 @@ ${outfitDescription}
 3.  **Analyze the Model:**
     Examine the model in the provided image. Infer their characteristics (age, ethnicity, style) to inform your directions.
 
-**Your Output:**
-Based on your analysis, create the ultimate photoshoot plan.
-- If the user specified a location, create a vivid, detailed scene around it.
-- If the user did NOT specify a location, choose the MOST SUITABLE location from the iconic locations list that fits the outfit's style and the user's requested mood/visual style.
-- The model's pose MUST be different from the studio shot. It should be a dynamic, natural pose that fits the new scene.
-- Fill out every single field in the JSON schema with expert, creative, and detailed information.
+**Your Creative Output (The Photoshoot Plan):**
+Based on your expert analysis, create the ultimate photoshoot concept.
+
+*   **Location Direction:**
+    *   If the user specified a location: Elevate their idea. Expand on it with rich, sensory details that evoke a sense of luxury and exclusivity. Describe the specific textures, architecture, and atmosphere.
+    *   If the user did NOT specify a location: This is your moment to shine. **Invent a breathtaking, unique, and perfectly suitable location.** Do NOT use a generic list. Think like a location scout for Vogue. Consider the outfit's story. Is it a minimalist architectural masterpiece, a secluded private beach, a vibrant and historic city street, or a lavish interior? Describe this imagined location with vivid detail.
+
+*   **Model Pose:** The model's pose MUST be completely new and different from the static studio shot. It must be a dynamic, natural, and elegant pose that perfectly fits the new scene and mood.
+*   **Completeness:** Fill out every single field in the JSON schema with expert, creative, and detailed information. Your choices for lighting, camera, composition, and post-production should all work together to tell a cohesive, luxurious story.
 `.trim();
     
     console.log('[AI Art Director] Sending prompt generation request...');
