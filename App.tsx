@@ -108,9 +108,15 @@ const App: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const looksToImport = JSON.parse(event.target?.result as string) as Omit<Look, 'id'>[];
+        const importedLooks = JSON.parse(event.target?.result as string) as Look[];
+        
         // Basic validation
-        if (Array.isArray(looksToImport) && looksToImport.every(l => l.finalImage && l.products)) {
+        if (Array.isArray(importedLooks) && importedLooks.every(l => l.finalImage && l.products)) {
+          // FIX: Strip the 'id' from each imported look before adding it to the database.
+          // This prevents a "ConstraintError" with IndexedDB's auto-incrementing key.
+          // Each imported look will be treated as a new entry and receive a fresh, unique ID.
+          const looksToImport: Omit<Look, 'id'>[] = importedLooks.map(({ id, ...rest }) => rest);
+          
           await dbService.bulkAdd<Look>('looks', looksToImport);
           await loadData(); // Reload all data to reflect imports
         } else {
