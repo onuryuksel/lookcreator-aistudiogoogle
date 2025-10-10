@@ -111,3 +111,10 @@ export const StarIcon: React.FC = () => (
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </Icon>
 );
+
+export const CropIcon: React.FC = () => (
+    <Icon>
+        <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15" />
+        <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15" />
+    </Icon>
+);

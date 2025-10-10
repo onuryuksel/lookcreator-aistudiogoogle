@@ -1,9 +1,11 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
 import { Button, Card, Dropdown, DropdownItem } from '../components/common';
-import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon } from '../components/Icons';
+import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon } from '../components/Icons';
+import AspectRatioModal from '../components/AspectRatioModal';
 
 interface LookDetailProps {
   look: Look;
@@ -23,6 +25,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const [showProductRightArrow, setShowProductRightArrow] = useState(true);
   const [showVariationLeftArrow, setShowVariationLeftArrow] = useState(false);
   const [showVariationRightArrow, setShowVariationRightArrow] = useState(true);
+  const [isAspectRatioModalOpen, setIsAspectRatioModalOpen] = useState(false);
 
   // The main image is the source of truth, variations are everything else.
   const variations = (look.variations || []).filter(v => v !== look.finalImage);
@@ -47,6 +50,15 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     if (window.confirm('Are you sure you want to delete this look? This action cannot be undone.')) {
       onDelete(look.id!);
     }
+  };
+
+  const handleSaveNewVariation = (newImage: string) => {
+    const updatedLook: Look = {
+        ...look,
+        variations: [...new Set([...(look.variations || []), newImage])],
+    };
+    onUpdate(updatedLook);
+    setIsAspectRatioModalOpen(false); // Close modal on save
   };
   
   const handleProductScroll = () => {
@@ -137,6 +149,9 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             <DropdownItem onClick={onLifestyleShoot}>
                 <ClapperboardIcon/> Create Lifestyle Shoot
             </DropdownItem>
+            <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)}>
+                <CropIcon/> Change Aspect Ratio
+            </DropdownItem>
             <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
                 <TrashIcon/> Delete Look
             </DropdownItem>
@@ -221,6 +236,15 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
         </div>
       )}
       {/* --- END: Variations Section --- */}
+      
+      {isAspectRatioModalOpen && (
+        <AspectRatioModal
+            isOpen={isAspectRatioModalOpen}
+            onClose={() => setIsAspectRatioModalOpen(false)}
+            look={look}
+            onSaveVariation={handleSaveNewVariation}
+        />
+       )}
     </div>
   );
 };

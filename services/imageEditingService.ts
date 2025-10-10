@@ -191,6 +191,46 @@ Now, generate the final image.
   return `data:${mimeType};base64,${base64Image}`;
 };
 
+export const changeImageAspectRatio = async (
+  baseImage: string,
+  aspectRatio: string
+): Promise<string> => {
+  const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+  const prompt = `Your task is to change the aspect ratio of this image to ${aspectRatio}. You must intelligently extend the background and scene to fill the new canvas dimensions using generative fill. The original subject (the model, their complete outfit, and immediate surroundings) must remain the central focus, perfectly preserved, and appropriately scaled within the new frame. Do not crop, distort, or change the original subject. The final output must be a seamless, photorealistic image.`;
+
+  console.log(`[Aspect Ratio Change] Sending request for ratio: ${aspectRatio}`);
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        { text: prompt },
+        imagePart,
+      ],
+    },
+    config: {
+      // @ts-ignore - Per user request, adding imageConfig. This may not be officially documented
+      // in the provided guidelines, but following the specific instruction for this feature.
+      imageConfig: {
+        aspectRatio: aspectRatio,
+      },
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
+    },
+  });
+
+  const generatedPart = response.candidates[0].content.parts.find(p => p.inlineData);
+  if (!generatedPart || !generatedPart.inlineData) {
+    const textPart = response.candidates[0].content.parts.find(p => p.text);
+    console.error("[Aspect Ratio Change] Image generation failed. Text response:", textPart?.text);
+    throw new Error("Aspect ratio change failed. The model did not return an image.");
+  }
+
+  const base64Image = generatedPart.inlineData.data;
+  const mimeType = generatedPart.inlineData.mimeType;
+  return `data:${mimeType};base64,${base64Image}`;
+};
+
+
 // --- Other Editing Functions (Unchanged) ---
 const EDIT_PROMPT_TEMPLATE = `
 **TASK: Edit the base image based on the user's prompt.**
