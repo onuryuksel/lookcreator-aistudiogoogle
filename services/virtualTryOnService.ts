@@ -46,35 +46,44 @@ export const performVirtualTryOn = async (
     const category = getProductCategory(product);
     const modelGarment = model.gender === 'Male' ? 't-shirt and shorts' : 'bodysuit';
     const wearingItems = previousProducts.map(p => `- ${p.name} (${getProductCategory(p)})`);
+    const productItemDescription = `${product.class} named '${product.name}'`;
 
     let primaryTask: string;
 
     switch(category) {
         case 'Footwear':
-            primaryTask = `Digitally TRANSFER the footwear from the product photo onto the model, replacing the model's bare feet.`;
+            primaryTask = `Digitally TRANSFER the footwear (${productItemDescription}) from the product photo onto the model, replacing the model's bare feet.`;
             break;
         case 'Bottoms':
-            primaryTask = `Digitally TRANSFER the bottoms from the product photo onto the model, replacing the lower part of the ${modelGarment}.`;
+            primaryTask = `Digitally TRANSFER the bottoms (${productItemDescription}) from the product photo onto the model, replacing the lower part of the ${modelGarment} or any existing bottoms.`;
             break;
         case 'Full-body Outfit':
-            primaryTask = `Digitally TRANSFER the garment(s) shown in the product photo onto the model, replacing the underlying ${modelGarment}. The result must be a flawless visual transfer, not an interpretation.`;
+            primaryTask = `Digitally TRANSFER the full-body outfit (${productItemDescription}) shown in the product photo onto the model, replacing the underlying ${modelGarment} and any other worn items.`;
             break;
         default: // 'Base Top' or 'Outerwear'
-             primaryTask = `Digitally LAYER the garment from the product photo over the model's existing clothes.`;
+             primaryTask = `Digitally LAYER the top/outerwear (${productItemDescription}) from the product photo over the model's existing clothes.`;
     }
 
-    const VIRTUAL_TRY_ON_PROMPT = `You are a digital tailor specializing in hyper-realistic virtual try-on. Your SOLE job is to transfer a garment from a product image onto a model's image with absolute, pixel-perfect precision.
+    const productDetails = `
+- **Product Name:** ${product.name}
+- **Product Type:** ${product.class} / ${product.subClass}
+`;
 
-**PRIME DIRECTIVE: FLAWLESS REPLICATION. NO CREATIVE CHANGES.**
-This is a technical replication task, not a creative one. You MUST transfer the garment from the product photo to the model with ZERO alterations. The final garment on the model must be an IDENTICAL copy of the one in the product photo.
+    const VIRTUAL_TRY_ON_PROMPT = `You are a digital tailor specializing in hyper-realistic virtual try-on. Your task is to transfer a SINGLE SPECIFIC garment from a product image onto a model's image with absolute precision.
+
+**PRIME DIRECTIVE: FLAWLESS REPLICATION OF A SINGLE ITEM.**
+
+**THE SPECIFIC GARMENT TO TRANSFER:**
+You must identify and transfer ONLY the following item from the product image. IGNORE any other garments or accessories shown in the product photo.
+${productDetails}
 
 **PRIMARY TASK:**
 ${primaryTask}
 
 **CRITICAL RULES:**
-1.  **DO NOT ALTER THE PRODUCT (MOST IMPORTANT RULE):** You are forbidden from changing the product's design. The sleeves, neckline, length, pattern, texture, color, buttons, lace, and any other details must be replicated exactly as they appear in the product photo. If the product has puff sleeves, the result MUST have identical puff sleeves.
-2.  **PRESERVE MODEL & BACKGROUND:** The model's face, physical characteristics, hair, pose, and the background must remain IDENTICAL to the base image. Only the clothing being replaced should change.
-3.  **VISUALS ARE THE ONLY TRUTH:** The product PHOTO is the only source of truth. Ignore any product name or text. Replicate exactly what you SEE in the image.
+1.  **TRANSFER ONLY THE SPECIFIED GARMENT (MOST IMPORTANT RULE):** The product photo may show a full outfit, but you must ONLY transfer the specific item detailed above. For example, if the product is a 'Top', you must ignore any pants, skirts, or shorts in the product photo.
+2.  **DO NOT ALTER THE PRODUCT:** The garment you transfer must be an IDENTICAL copy of the one in the product photo in terms of design, color, texture, and fit.
+3.  **PRESERVE MODEL & BACKGROUND:** The model's face, physical characteristics, hair, pose, and the background must remain IDENTICAL to the base image. Only the clothing being replaced should change.
 4.  **PRESERVE EXISTING ITEMS:** The model is already wearing these items. They MUST be perfectly preserved under or around the new garment:
 ${wearingItems.length > 0 ? wearingItems.join('\n') : 'None'}
 
