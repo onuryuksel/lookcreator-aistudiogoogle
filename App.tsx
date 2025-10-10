@@ -1,52 +1,44 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Look, Model } from './types';
+import * as db from './services/dbService';
+import { INITIAL_MODELS } from './initialData';
 import CreatorStudio from './pages/CreatorStudio';
 import Lookbook from './pages/Lookbook';
 import LookDetail from './pages/LookDetail';
 import ConversationalEditPage from './pages/ConversationalEditPage';
-import { Model, Look } from './types';
-import * as dbService from './services/dbService';
-import { INITIAL_MODELS } from './initialData';
-import { WandSparklesIcon, BookOpenIcon, SunIcon, MoonIcon } from './components/Icons';
+import LifestyleShootPage from './pages/LifestyleShootPage';
 
-type View = 'creator' | 'lookbook' | 'lookDetail' | 'conversationalEdit';
+type Page = 
+  | { name: 'creator' }
+  | { name: 'lookbook' }
+  | { name: 'look-detail', lookId: number }
+  | { name: 'edit-look', lookId: number }
+  | { name: 'lifestyle-shoot', lookId: number };
 
 const App: React.FC = () => {
   const [models, setModels] = useState<Model[]>([]);
   const [looks, setLooks] = useState<Look[]>([]);
-  const [currentView, setCurrentView] = useState<View>('creator');
-  const [selectedLookId, setSelectedLookId] = useState<number | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
-  });
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
+  const [currentPage, setCurrentPage] = useState<Page>({ name: 'creator' });
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      let dbModels = await dbService.getAll<Model>('models');
+      setIsLoading(true);
+      let dbModels = await db.getAll<Model>('models');
       if (dbModels.length === 0) {
-        await dbService.bulkAdd('models', INITIAL_MODELS);
-        dbModels = await dbService.getAll<Model>('models');
+        await db.bulkAdd('models', INITIAL_MODELS);
+        dbModels = await db.getAll<Model>('models');
       }
-      const dbLooks = await dbService.getAll<Look>('looks');
-
+      const dbLooks = await db.getAll<Look>('looks');
+      
       setModels(dbModels);
-      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt)); // Sort by newest first
+      // Sort looks by newest first
+      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt));
+
     } catch (error) {
       console.error("Failed to load data from IndexedDB:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -54,150 +46,158 @@ const App: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  // Model Handlers
   const handleModelCreated = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
-    const newModel = await dbService.add<Model>('models', modelData);
+    const newModel = await db.add<Model>('models', modelData);
     setModels(prev => [...prev, newModel]);
     return newModel;
   };
 
   const handleModelDeleted = async (id: number) => {
-    await dbService.remove('models', id);
+    await db.remove('models', id);
     setModels(prev => prev.filter(m => m.id !== id));
   };
 
+  // Look Handlers
   const handleLookSaved = async (lookData: Omit<Look, 'id'>) => {
-    const newLook = await dbService.add<Look>('looks', lookData);
+    const newLook = await db.add<Look>('looks', lookData);
     setLooks(prev => [newLook, ...prev]);
-    setCurrentView('lookbook');
+    // Navigate to lookbook to see the new creation
+    setCurrentPage({ name: 'lookbook' });
   };
   
   const handleLookUpdated = async (updatedLook: Look) => {
-    await dbService.put<Look>('looks', updatedLook);
+    await db.put<Look>('looks', updatedLook);
     setLooks(prev => prev.map(l => l.id === updatedLook.id ? updatedLook : l));
-    setSelectedLookId(updatedLook.id!);
-    setCurrentView('lookDetail');
-  }
+    // If the user is on the edit page, navigate back to detail view
+    if (currentPage.name === 'edit-look' || currentPage.name === 'lifestyle-shoot') {
+      setCurrentPage({ name: 'look-detail', lookId: updatedLook.id! });
+    }
+  };
 
   const handleLookDeleted = async (id: number) => {
-    await dbService.remove('looks', id);
+    await db.remove('looks', id);
     setLooks(prev => prev.filter(l => l.id !== id));
-    setCurrentView('lookbook');
-  };
-
-  const handleSelectLook = (lookId: number) => {
-    setSelectedLookId(lookId);
-    setCurrentView('lookDetail');
-  };
-  
-  const handleNavigateToEdit = (lookId: number) => {
-    setSelectedLookId(lookId);
-    setCurrentView('conversationalEdit');
+    setCurrentPage({ name: 'lookbook' });
   }
 
-  const handleExportLooks = () => {
+  // Lookbook Import/Export
+  const handleLooksExport = () => {
     const dataStr = JSON.stringify(looks, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'ounass_lookbook.json';
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = 'ounass_ai_studio_looks.json';
+    
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
   };
-  
-  const handleImportLooks = (file: File) => {
+
+  const handleLooksImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
-      try {
-        const importedLooks = JSON.parse(event.target?.result as string) as Look[];
-        
-        // Basic validation
-        if (Array.isArray(importedLooks) && importedLooks.every(l => l.finalImage && l.products)) {
-          // FIX: Strip the 'id' from each imported look before adding it to the database.
-          // This prevents a "ConstraintError" with IndexedDB's auto-incrementing key.
-          // Each imported look will be treated as a new entry and receive a fresh, unique ID.
-          const looksToImport: Omit<Look, 'id'>[] = importedLooks.map(({ id, ...rest }) => rest);
-          
-          await dbService.bulkAdd<Look>('looks', looksToImport);
-          await loadData(); // Reload all data to reflect imports
-        } else {
-          alert('Invalid lookbook file format.');
+        try {
+            const importedLooksData = JSON.parse(event.target?.result as string) as Look[];
+            // Basic validation
+            if (!Array.isArray(importedLooksData) || importedLooksData.some(l => !l.finalImage || !l.products)) {
+                throw new Error("Invalid look file format.");
+            }
+            // FIX: Remove 'id' before bulk adding to prevent ConstraintError
+            const importedLooks = importedLooksData.map(({ id, ...rest }) => rest);
+            await db.bulkAdd<Look>('looks', importedLooks);
+            loadData(); // Reload all data
+        } catch (error) {
+            console.error("Error importing looks:", error);
+            alert("Failed to import looks. Please check the file format.");
         }
-      } catch (error) {
-        console.error("Error importing looks:", error);
-        alert('Failed to import lookbook file.');
-      }
     };
     reader.readAsText(file);
   };
 
+  const renderPage = () => {
+    if (isLoading) {
+      return <div className="flex justify-center items-center h-screen"><p>Loading Studio...</p></div>;
+    }
 
-  const renderContent = () => {
-    const selectedLook = looks.find(l => l.id === selectedLookId);
-
-    switch (currentView) {
+    switch (currentPage.name) {
       case 'creator':
         return <CreatorStudio 
-                  models={models} 
-                  onLookSaved={handleLookSaved} 
-                  onModelCreated={handleModelCreated} 
-                  onModelDeleted={handleModelDeleted}
-               />;
+          models={models} 
+          onLookSaved={handleLookSaved} 
+          onModelCreated={handleModelCreated}
+          onModelDeleted={handleModelDeleted}
+        />;
       case 'lookbook':
         return <Lookbook 
-                  looks={looks} 
-                  onLooksExport={handleExportLooks}
-                  onLooksImport={handleImportLooks}
-                  onSelectLook={handleSelectLook}
-               />;
-      case 'lookDetail':
-        if (selectedLook) {
-          return <LookDetail 
-                    look={selectedLook} 
-                    onBack={() => setCurrentView('lookbook')} 
-                    onDelete={handleLookDeleted} 
-                    onNavigateToEdit={handleNavigateToEdit}
-                    onUpdateLook={handleLookUpdated}
-                  />
-        }
-        return null;
-      case 'conversationalEdit':
-        if (selectedLook) {
-          return <ConversationalEditPage 
-                    look={selectedLook}
-                    onBack={() => {setSelectedLookId(selectedLook.id!); setCurrentView('lookDetail');}}
-                    onSave={handleLookUpdated}
-                 />
-        }
-        return null;
+          looks={looks}
+          onLooksExport={handleLooksExport}
+          onLooksImport={handleLooksImport}
+          onSelectLook={(lookId) => setCurrentPage({ name: 'look-detail', lookId })}
+        />;
+      case 'look-detail': {
+        const look = looks.find(l => l.id === currentPage.lookId);
+        return look ? <LookDetail 
+          look={look}
+          onBack={() => setCurrentPage({ name: 'lookbook' })}
+          onDelete={handleLookDeleted}
+          onUpdate={handleLookUpdated}
+          onEdit={() => setCurrentPage({ name: 'edit-look', lookId: currentPage.lookId })}
+          onLifestyleShoot={() => setCurrentPage({ name: 'lifestyle-shoot', lookId: currentPage.lookId })}
+        /> : <div>Look not found.</div>;
+      }
+      case 'edit-look': {
+        const look = looks.find(l => l.id === currentPage.lookId);
+        return look ? <ConversationalEditPage 
+          look={look}
+          onBack={() => setCurrentPage({ name: 'look-detail', lookId: currentPage.lookId })}
+          onSave={handleLookUpdated}
+        /> : <div>Look not found.</div>;
+      }
+      case 'lifestyle-shoot': {
+        const look = looks.find(l => l.id === currentPage.lookId);
+        return look ? <LifestyleShootPage 
+          look={look}
+          onBack={() => setCurrentPage({ name: 'look-detail', lookId: currentPage.lookId })}
+          onSave={handleLookUpdated}
+        /> : <div>Look not found.</div>;
+      }
       default:
-        return <CreatorStudio models={models} onLookSaved={handleLookSaved} onModelCreated={handleModelCreated} onModelDeleted={handleModelDeleted}/>;
+        return <div>Page not found.</div>;
     }
   };
 
+  const NavButton: React.FC<{pageName: Page['name'], children: React.ReactNode}> = ({ pageName, children }) => {
+    const isActive = currentPage.name === pageName;
+    return (
+        <button
+            onClick={() => setCurrentPage({ name: pageName } as Page)}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                isActive
+                ? 'bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900'
+                : 'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+        >
+            {children}
+        </button>
+    );
+  }
+
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen font-sans">
-      <header className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-40">
-        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <span className="font-bold text-xl tracking-tight">Ounass Look Creator</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setCurrentView('creator')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'creator' ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
-                <WandSparklesIcon /> Create
-              </button>
-              <button onClick={() => setCurrentView('lookbook')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'lookbook' || currentView === 'lookDetail' || currentView === 'conversationalEdit' ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
-                <BookOpenIcon /> Lookbook
-              </button>
-              <button onClick={toggleTheme} className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-              </button>
-            </div>
+    <div className="bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen font-sans">
+      <header className="bg-white dark:bg-zinc-900 shadow-sm sticky top-0 z-40">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-3">
+            <h1 className="text-xl font-bold tracking-tight">Ounass AI Studio</h1>
+            <nav className="flex items-center gap-2">
+                <NavButton pageName="creator">Create</NavButton>
+                <NavButton pageName="lookbook">My Lookbook</NavButton>
+            </nav>
           </div>
-        </nav>
+        </div>
       </header>
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {renderContent()}
+        {renderPage()}
       </main>
     </div>
   );

@@ -1,4 +1,3 @@
-// FIX: Removed a self-import of the 'OunassSKU' type. This was causing a name conflict because the type is defined within this same file.
 export interface OunassSKU {
   id: number;
   sku: string;
@@ -8,7 +7,7 @@ export interface OunassSKU {
   minPriceInAED: number;
   media: { src: string }[];
   sizesInHomeDeliveryStock: string[];
-  sizeAndFit?: string[];
+  sizeAndFit: string[];
   division: string;
   productClass: string;
   color: string;
@@ -23,9 +22,9 @@ export interface OunassSKU {
 
 export interface Model {
   id?: number;
+  imageUrl: string;
   name: string;
-  imageUrl: string; // base64
-  gender: string;
+  gender: 'Male' | 'Female';
   ethnicity: string;
   ageAppearance: string;
   height: string;
@@ -36,19 +35,87 @@ export interface Model {
   facialHair: string;
 }
 
-export interface TryOnStep {
-  sku: OunassSKU;
-  inputImage: string; // The image used as input for this step
-  outputImage: string; // base64
-  prompt: string;
-  status: 'pending' | 'generating' | 'completed' | 'failed';
-}
-
 export interface Look {
   id?: number;
-  finalImage: string; // base64
+  finalImage: string;
   products: OunassSKU[];
-  baseImage: string; // base64 image of user or model
+  baseImage: string;
   createdAt: number;
-  variations?: string[]; // Array of base64 images
+  variations?: string[]; // Optional array of image URLs
+}
+
+export type TryOnStatus = 'pending' | 'generating' | 'completed' | 'failed';
+
+export interface TryOnStep {
+  sku: OunassSKU;
+  inputImage: string;
+  outputImage: string;
+  prompt: string;
+  status: TryOnStatus;
+}
+
+// New types for the multi-step Lifestyle Shoot feature
+export interface LifestyleShootUserInput {
+  location: string;
+  mood: string;
+  time: string;
+  details: string;
+  visualStyle: string;
+}
+
+export interface ArtDirectorPrompt {
+    scene_setting: {
+        location: string;
+        mood: string;
+        time: string;
+        details: string;
+        visual_style: string;
+    };
+    camera_lens_specifications: {
+        camera_model: string;
+        lens_choices: string[];
+        aperture: string;
+        shutter_speed: string;
+        iso: string;
+        focus_mode: string;
+    };
+    lighting_setup: {
+        key_light: string;
+        fill_light: string;
+        rim_back_light: string;
+        modifiers: string;
+        color_temp: string;
+    };
+    composition: {
+        shot_type: string;
+        camera_angle: string;
+        rule_of_thirds: string;
+        depth_of_field: string;
+        background: string;
+    };
+    post_production: {
+        color_grading: string;
+        filters: string;
+        skin_retouching: string;
+        product_enhancement: string;
+        output: string;
+    };
+    professional_director_notes: {
+        model_direction: string;
+        wardrobe_styling: string;
+        set_design: string;
+        atmosphere: string;
+        brand_consistency: string;
+    };
+    model_direction: {
+        characteristics: string;
+        posing: string;
+        expressions: string;
+        body_language: string;
+        interaction: string;
+        hair_makeup: {
+            hair: string;
+            makeup: string;
+        };
+    };
 }

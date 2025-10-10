@@ -82,7 +82,10 @@ const ModelCreationForm: React.FC<ModelCreationFormProps> = ({ onClose, isCreati
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{label}</label>
             <select
                 name={name}
-                value={formData[name as keyof Omit<Model, 'id' | 'imageUrl'>] as string}
+                // FIX: Simplified the value access. With `types.ts` present, TypeScript can correctly infer
+                // that `formData[name]` is a string (or a string literal union), which is a valid type
+                // for the `value` attribute of a select element. The previous complex casting is no longer needed.
+                value={formData[name]}
                 onChange={handleFormChange}
                 disabled={isCreating}
                 className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
