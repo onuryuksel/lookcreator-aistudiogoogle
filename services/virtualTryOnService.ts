@@ -210,3 +210,45 @@ Return ONLY the complete, full-body, modified image.
     const { data: generatedBase64, mimeType: generatedMimeType } = imagePart.inlineData;
     return `data:${generatedMimeType};base64,${generatedBase64}`;
 };
+
+// FIX: Added a new service function to handle conversational image editing.
+// This function takes a base image and a text prompt to generate an edited image using Gemini.
+export const editImageWithPrompt = async (
+  baseImage: string,
+  prompt: string
+): Promise<string> => {
+  const editPrompt = `
+You are an expert photo editor. The user wants to modify an image.
+**CRITICAL INSTRUCTION:** Apply the user's request precisely to the provided base image.
+**User's Request:** "${prompt}"
+
+**RULES:**
+1.  **Preserve Identity:** Maintain the model's identity, pose, and the overall composition of the base image unless specifically asked to change them.
+2.  **Realism:** The final image must be photorealistic and seamlessly edited.
+3.  **Output:** Return ONLY the modified image. Do not add text or commentary.
+  `.trim();
+
+  const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+
+  console.log('[Conversational Edit] Sending image generation request...');
+  const imageResponse = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        { text: editPrompt },
+        imagePart,
+      ],
+    },
+    config: {
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
+    },
+  });
+  
+  const imagePartOut = imageResponse.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (!imagePartOut || !imagePartOut.inlineData) {
+      throw new Error('Image editing failed: No image was generated.');
+  }
+
+  const { data: generatedBase64, mimeType: generatedMimeType } = imagePartOut.inlineData;
+  return `data:${generatedMimeType};base64,${generatedBase64}`;
+};

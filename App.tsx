@@ -1,268 +1,196 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import CreatorStudio from './pages/CreatorStudio';
 import Lookbook from './pages/Lookbook';
 import LookDetail from './pages/LookDetail';
-import { WandSparklesIcon, BookOpenIcon, SunIcon, MoonIcon, DesktopIcon } from './components/Icons';
-import { Look, Model } from './types';
+import ConversationalEditPage from './pages/ConversationalEditPage';
+import { Model, Look } from './types';
 import * as dbService from './services/dbService';
+import { INITIAL_MODELS } from './initialData';
+import { WandSparklesIcon, BookOpenIcon, SunIcon, MoonIcon } from './components/Icons';
 
-
-type Page = 'creator' | 'lookbook';
-type Theme = 'light' | 'dark' | 'system';
+type View = 'creator' | 'lookbook' | 'lookDetail' | 'conversationalEdit';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('creator');
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'light');
-  
-  const [looks, setLooks] = useState<Look[]>([]);
   const [models, setModels] = useState<Model[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [looks, setLooks] = useState<Look[]>([]);
+  const [currentView, setCurrentView] = useState<View>('creator');
   const [selectedLookId, setSelectedLookId] = useState<number | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  });
 
-  // --- Data Loading ---
-  const loadData = async () => {
-      try {
-        const loadedModels = await dbService.getAll<Model>('models');
-        const loadedLooks = await dbService.getAll<Look>('looks');
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
-        setModels(loadedModels);
-        setLooks(loadedLooks.sort((a,b) => b.createdAt - a.createdAt));
-      } catch (error) {
-        console.error("Failed to load data from IndexedDB:", error);
-      } finally {
-        setIsLoading(false);
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
+  const loadData = useCallback(async () => {
+    try {
+      let dbModels = await dbService.getAll<Model>('models');
+      if (dbModels.length === 0) {
+        await dbService.bulkAdd('models', INITIAL_MODELS);
+        dbModels = await dbService.getAll<Model>('models');
       }
-    };
+      const dbLooks = await dbService.getAll<Look>('looks');
+
+      setModels(dbModels);
+      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt)); // Sort by newest first
+    } catch (error) {
+      console.error("Failed to load data from IndexedDB:", error);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-
-  useEffect(() => {
-    const root = window.document.documentElement;
-    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    
-    root.classList.toggle('dark', isDark);
-    localStorage.setItem('theme', theme);
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-        if (theme === 'system') {
-            root.classList.toggle('dark', mediaQuery.matches);
-        }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme]);
-
-  const handleSetCurrentPage = (page: Page) => {
-    setSelectedLookId(null); // Reset look detail view when switching main pages
-    setCurrentPage(page);
+  const handleModelCreated = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
+    const newModel = await dbService.add<Model>('models', modelData);
+    setModels(prev => [...prev, newModel]);
+    return newModel;
   };
 
-  const handleThemeToggle = () => {
-    setTheme(prevTheme => {
-        if (prevTheme === 'system') return 'light';
-        if (prevTheme === 'light') return 'dark';
-        return 'system'; // from 'dark' back to 'system'
-    });
+  const handleModelDeleted = async (id: number) => {
+    await dbService.remove('models', id);
+    setModels(prev => prev.filter(m => m.id !== id));
   };
 
-  const getNextThemeName = () => {
-    if (theme === 'system') return 'Light';
-    if (theme === 'light') return 'Dark';
-    return 'System';
-  };
-
-  const handleSaveLook = async (newLookData: Omit<Look, 'id'>) => {
-    try {
-        const lookToSave = {
-            ...newLookData,
-            variations: [newLookData.finalImage], // Initialize variations
-        };
-        const newLookWithId = await dbService.add<Look>('looks', lookToSave);
-        setLooks(prevLooks => [newLookWithId, ...prevLooks].sort((a,b) => b.createdAt - a.createdAt));
-        alert('Look saved to Lookbook!');
-        setCurrentPage('lookbook');
-    } catch (error) {
-        console.error("Failed to save look:", error);
-        alert("Error: Could not save look to the database.");
-    }
-  };
-
-  const handleUpdateLook = async (updatedLook: Look) => {
-    try {
-        await dbService.put<Look>('looks', updatedLook);
-        setLooks(prevLooks => 
-            prevLooks.map(look => 
-                look.id === updatedLook.id ? updatedLook : look
-            ).sort((a,b) => b.createdAt - a.createdAt)
-        );
-    } catch (error) {
-        console.error("Failed to update look:", error);
-        alert("Error: Could not update look in the database.");
-    }
-  };
-
-  const handleCreateModel = async (newModelData: Omit<Model, 'id'>) => {
-    try {
-        const newModelWithId = await dbService.add<Model>('models', newModelData);
-        setModels(prevModels => [...prevModels, newModelWithId]);
-        return newModelWithId;
-    } catch (error) {
-        console.error("Failed to create model:", error);
-        alert("Error: Could not save model to the database.");
-        throw error; // Re-throw to be caught by the form
-    }
-  };
-
-  const handleDeleteModel = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this model?')) {
-        try {
-            await dbService.remove('models', id);
-            setModels(prevModels => prevModels.filter(model => model.id !== id));
-        } catch (error) {
-            console.error("Failed to delete model:", error);
-            alert("Error: Could not delete model from the database.");
-        }
-    }
-  };
-
-  // --- START: EXPORT/IMPORT LOGIC ---
-  const handleExport = async (storeName: 'models' | 'looks', fileName: string) => {
-    try {
-      const data = await dbService.getAll(storeName);
-      if (data.length === 0) {
-        alert(`There are no ${storeName} to export.`);
-        return;
-      }
-      const jsonString = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error(`Failed to export ${storeName}:`, error);
-      alert(`Error exporting ${storeName}.`);
-    }
+  const handleLookSaved = async (lookData: Omit<Look, 'id'>) => {
+    const newLook = await dbService.add<Look>('looks', lookData);
+    setLooks(prev => [newLook, ...prev]);
+    setCurrentView('lookbook');
   };
   
-  const handleImportLooks = async (file: File) => {
-    if (!file) return;
+  const handleLookUpdated = async (updatedLook: Look) => {
+    await dbService.put<Look>('looks', updatedLook);
+    setLooks(prev => prev.map(l => l.id === updatedLook.id ? updatedLook : l));
+    setSelectedLookId(updatedLook.id!);
+    setCurrentView('lookDetail');
+  }
+
+  const handleLookDeleted = async (id: number) => {
+    await dbService.remove('looks', id);
+    setLooks(prev => prev.filter(l => l.id !== id));
+    setCurrentView('lookbook');
+  };
+
+  const handleSelectLook = (lookId: number) => {
+    setSelectedLookId(lookId);
+    setCurrentView('lookDetail');
+  };
+  
+  const handleNavigateToEdit = (lookId: number) => {
+    setSelectedLookId(lookId);
+    setCurrentView('conversationalEdit');
+  }
+
+  const handleExportLooks = () => {
+    const dataStr = JSON.stringify(looks, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const exportFileDefaultName = 'ounass_lookbook.json';
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+  
+  const handleImportLooks = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const content = event.target?.result;
-        if (typeof content !== 'string') throw new Error('File content is not readable.');
-        const importedData = JSON.parse(content);
-        if (!Array.isArray(importedData)) throw new Error('Invalid file format: Not an array.');
-        
-        // Basic validation of the first item
-        const firstItem = importedData[0];
-        if (!firstItem || typeof firstItem.finalImage !== 'string' || !Array.isArray(firstItem.products)) {
-            throw new Error('Invalid file content: Data does not match look structure.');
+        const looksToImport = JSON.parse(event.target?.result as string) as Omit<Look, 'id'>[];
+        // Basic validation
+        if (Array.isArray(looksToImport) && looksToImport.every(l => l.finalImage && l.products)) {
+          await dbService.bulkAdd<Look>('looks', looksToImport);
+          await loadData(); // Reload all data to reflect imports
+        } else {
+          alert('Invalid lookbook file format.');
         }
-
-        const looksToSave = importedData.map(({ id, ...look }) => look); // Strip IDs
-        await dbService.bulkAdd('looks', looksToSave);
-        alert(`${looksToSave.length} looks imported successfully!`);
-        await loadData(); // Reload all data to reflect changes
       } catch (error) {
-        console.error('Failed to import looks:', error);
-        alert(`Error importing looks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error("Error importing looks:", error);
+        alert('Failed to import lookbook file.');
       }
     };
     reader.readAsText(file);
   };
-  // --- END: EXPORT/IMPORT LOGIC ---
 
 
-  const renderPage = () => {
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-full"><p>Loading data...</p></div>;
-    }
+  const renderContent = () => {
+    const selectedLook = looks.find(l => l.id === selectedLookId);
 
-    switch (currentPage) {
+    switch (currentView) {
       case 'creator':
         return <CreatorStudio 
                   models={models} 
-                  onLookSaved={handleSaveLook}
-                  onModelCreated={handleCreateModel}
-                  onModelDeleted={handleDeleteModel}
+                  onLookSaved={handleLookSaved} 
+                  onModelCreated={handleModelCreated} 
+                  onModelDeleted={handleModelDeleted}
                />;
       case 'lookbook':
-        const selectedLook = looks.find(l => l.id === selectedLookId);
+        return <Lookbook 
+                  looks={looks} 
+                  onLooksExport={handleExportLooks}
+                  onLooksImport={handleImportLooks}
+                  onSelectLook={handleSelectLook}
+               />;
+      case 'lookDetail':
         if (selectedLook) {
           return <LookDetail 
                     look={selectedLook} 
-                    onBack={() => setSelectedLookId(null)} 
-                    onLookUpdated={handleUpdateLook}
-                 />;
+                    onBack={() => setCurrentView('lookbook')} 
+                    onDelete={handleLookDeleted} 
+                    onNavigateToEdit={handleNavigateToEdit}
+                  />
         }
-        return <Lookbook 
-                  looks={looks} 
-                  onLooksExport={() => handleExport('looks', 'looks.json')}
-                  onLooksImport={handleImportLooks}
-                  onSelectLook={(id) => setSelectedLookId(id)}
-                />;
+        return null;
+      case 'conversationalEdit':
+        if (selectedLook) {
+          return <ConversationalEditPage 
+                    look={selectedLook}
+                    onBack={() => {setSelectedLookId(selectedLook.id!); setCurrentView('lookDetail');}}
+                    onSave={handleLookUpdated}
+                 />
+        }
+        return null;
       default:
-        return <CreatorStudio 
-                  models={models} 
-                  onLookSaved={handleSaveLook}
-                  onModelCreated={handleCreateModel}
-                  onModelDeleted={handleDeleteModel}
-                />;
+        return <CreatorStudio models={models} onLookSaved={handleLookSaved} onModelCreated={handleModelCreated} onModelDeleted={handleModelDeleted}/>;
     }
   };
 
-  const NavItem = ({ page, label, icon }: { page: Page; label: string; icon: React.ReactNode }) => (
-    <button
-      onClick={() => handleSetCurrentPage(page)}
-      className={`flex flex-col items-center justify-center w-full py-4 transition-colors duration-200 group ${
-        currentPage === page ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
-      }`}
-      aria-label={label}
-    >
-      {icon}
-      <span className={`mt-2 text-xs font-semibold ${currentPage === page ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100'}`}>{label}</span>
-    </button>
-  );
-
   return (
-    <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 font-sans">
-      <aside className="w-20 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col items-center py-4">
-        <div className="h-16 flex items-center justify-center">
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tighter">O/AI</h1>
-        </div>
-        <nav className="flex-grow w-full mt-8 space-y-4">
-            <NavItem page="creator" label="Create" icon={<WandSparklesIcon />} />
-            <NavItem page="lookbook" label="Lookbook" icon={<BookOpenIcon />} />
+    <div className="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen font-sans">
+      <header className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-40">
+        <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <span className="font-bold text-xl tracking-tight">Ounass AI Studio</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setCurrentView('creator')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'creator' ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
+                <WandSparklesIcon /> Create
+              </button>
+              <button onClick={() => setCurrentView('lookbook')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'lookbook' || currentView === 'lookDetail' || currentView === 'conversationalEdit' ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
+                <BookOpenIcon /> Lookbook
+              </button>
+              <button onClick={toggleTheme} className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+              </button>
+            </div>
+          </div>
         </nav>
-        <div className="mt-auto">
-          <button
-            onClick={handleThemeToggle}
-            className="flex items-center justify-center w-12 h-12 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label={`Switch to ${getNextThemeName()} mode`}
-            title={`Switch to ${getNextThemeName()} mode`}
-          >
-            {theme === 'light' && <SunIcon />}
-            {theme === 'dark' && <MoonIcon />}
-            {theme === 'system' && <DesktopIcon />}
-          </button>
-        </div>
-      </aside>
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-            {renderPage()}
-        </div>
+      </header>
+      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+        {renderContent()}
       </main>
     </div>
   );
