@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
@@ -35,8 +34,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavig
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-        <div className="md:col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div className="md:col-span-1">
           <div className="relative aspect-[3/4] bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
             <img src={look.finalImage} alt="Final look" className="w-full h-full object-cover" />
           </div>
@@ -50,12 +49,10 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavig
             </p>
             
             <h3 className="text-lg font-semibold mb-4">Products Used ({look.products.length})</h3>
-            <div className="flex overflow-x-auto space-x-4 pb-4 -mb-4 -mx-6 px-6">
+            <div className="flex flex-wrap gap-4">
               {look.products.length > 0 ? (
                 look.products.map((product) => (
-                  <div key={product.id} className="flex-shrink-0">
-                     <ProductCard product={product} />
-                  </div>
+                  <ProductCard key={product.id} product={product} />
                 ))
               ) : (
                 <p className="text-sm text-zinc-500">No products are associated with this look.</p>
