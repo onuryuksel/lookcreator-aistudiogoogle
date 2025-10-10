@@ -1,8 +1,8 @@
 import React from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
-import { Button } from '../components/common';
-import { ChevronLeftIcon, TrashIcon, MessageSquareIcon } from '../components/Icons';
+import { Button, Dropdown, DropdownItem } from '../components/common';
+import { ChevronLeftIcon, TrashIcon, MessageSquareIcon, EllipsisVerticalIcon } from '../components/Icons';
 
 interface LookDetailProps {
   look: Look;
@@ -25,12 +25,25 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onNavig
           <ChevronLeftIcon /> Back to Lookbook
         </Button>
         <div className="flex gap-2">
-            <Button onClick={() => onNavigateToEdit(look.id!)} variant="secondary">
-              <MessageSquareIcon className="h-5 w-5"/> Conversational Edit
-            </Button>
-            <Button onClick={handleDelete} variant="danger">
-              <TrashIcon /> Delete Look
-            </Button>
+            <Dropdown
+              trigger={
+                <Button variant="secondary" aria-label="More options">
+                  <EllipsisVerticalIcon />
+                </Button>
+              }
+            >
+              <DropdownItem onClick={() => onNavigateToEdit(look.id!)}>
+                <MessageSquareIcon className="h-5 w-5" />
+                <span>Conversational Edit</span>
+              </DropdownItem>
+              <DropdownItem 
+                onClick={handleDelete} 
+                className="text-red-600 hover:!bg-red-50 hover:!text-red-700 dark:text-red-400 dark:hover:!bg-red-900/40 dark:hover:!text-red-300"
+              >
+                <TrashIcon />
+                <span>Delete Look</span>
+              </DropdownItem>
+            </Dropdown>
         </div>
       </div>
 

@@ -173,7 +173,7 @@ const App: React.FC = () => {
         <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <span className="font-bold text-xl tracking-tight">Ounass AI Studio</span>
+              <span className="font-bold text-xl tracking-tight">Ounass Look Creator</span>
             </div>
             <div className="flex items-center gap-4">
               <button onClick={() => setCurrentView('creator')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'creator' ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
