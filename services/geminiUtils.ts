@@ -1,13 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 
-if (!process.env.API_KEY) {
-  console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
+// Fix: Per coding guidelines, the API key must be obtained exclusively from `process.env.API_KEY`.
+// This change aligns with the project's API key handling policy and resolves the TypeScript error.
+const apiKey = process.env.API_KEY;
+
+if (!apiKey) {
+  // The app cannot function without the API key. Throwing a clear error helps diagnose
+  // deployment issues like a missing or incorrectly named environment variable.
+  throw new Error("API_KEY is not defined in environment variables. Please ensure it is set.");
 }
 
 /**
  * Shared GoogleGenAI client instance.
  */
-export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+export const ai = new GoogleGenAI({ apiKey: apiKey });
 
 
 /**
