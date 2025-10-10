@@ -1,4 +1,4 @@
-import React, { ChangeEvent, ReactNode } from 'react';
+import React, { ChangeEvent, ReactNode, useState, useRef, useEffect } from 'react';
 
 // Card
 interface CardProps {
@@ -92,3 +92,84 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         </div>
     );
 };
+
+
+// Dropdown Menu
+interface DropdownProps {
+  trigger: ReactNode;
+  children: ReactNode;
+}
+export const Dropdown: React.FC<DropdownProps> = ({ trigger, children }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleTriggerClick = () => {
+    setIsOpen(prev => !prev);
+  }
+  
+  const handleItemClick = () => {
+    setIsOpen(false);
+  }
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <div onClick={handleTriggerClick} className="cursor-pointer">
+        {trigger}
+      </div>
+
+      {isOpen && (
+        <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-zinc-800 ring-1 ring-black ring-opacity-5 dark:ring-zinc-700 focus:outline-none z-50">
+          <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+             {React.Children.map(children, child =>
+                React.isValidElement(child)
+                  ? React.cloneElement(child, {
+                      // @ts-ignore
+                      onClick: () => {
+                        // FIX: Cast `child.props` to `any` to safely access `onClick`.
+                        // The `props` on a generic React child are typed as `unknown` in strict mode,
+                        // preventing property access without a type assertion. We also add a `typeof`
+                        // check to ensure we only call it if it's a function.
+                        const originalOnClick = (child.props as any).onClick;
+                        if (typeof originalOnClick === 'function') {
+                          originalOnClick();
+                        }
+                        handleItemClick();
+                      },
+                    })
+                  : child
+              )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// Dropdown Menu Item
+interface DropdownItemProps {
+    onClick?: () => void;
+    children: ReactNode;
+    className?: string;
+}
+export const DropdownItem: React.FC<DropdownItemProps> = ({ onClick, children, className }) => (
+    <button
+        onClick={onClick}
+        className={`w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 flex items-center gap-3 ${className}`}
+        role="menuitem"
+    >
+        {children}
+    </button>
+);
