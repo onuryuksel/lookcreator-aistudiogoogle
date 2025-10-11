@@ -8,6 +8,7 @@ import LookDetail from './pages/LookDetail';
 import ConversationalEditPage from './pages/ConversationalEditPage';
 import LifestyleShootPage from './pages/LifestyleShootPage';
 import ViewLookboardPage from './pages/ViewLookboardPage';
+import { Button } from './components/common';
 
 type Page = 
   | { name: 'creator' }
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>({ name: 'creator' });
   const [isLoading, setIsLoading] = useState(true);
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     console.log('[App] Starting data load...');
@@ -73,6 +75,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("[App] CRITICAL: Failed to load or sanitize data from IndexedDB:", error);
+      setDbError(String(error));
     } finally {
       setIsLoading(false);
       console.log('[App] Loading state set to false.');
@@ -196,6 +199,18 @@ const App: React.FC = () => {
     };
     reader.readAsText(file);
   };
+  
+  const handleResetAppData = async () => {
+    try {
+      await db.deleteDB();
+      // Reload the page to start from a clean slate
+      window.location.reload();
+    } catch (e) {
+      alert("Automatic reset failed. Please clear your browser's site data for this page manually in the browser settings.");
+      console.error("Failed to delete database:", e);
+    }
+  };
+
 
   const renderPage = () => {
     if (isApiKeyMissing) {
@@ -208,6 +223,26 @@ const App: React.FC = () => {
           </p>
         </div>
       );
+    }
+    
+    if (dbError) {
+        return (
+          <div className="flex flex-col justify-center items-center h-screen text-center p-4">
+            <h2 className="text-2xl font-bold text-red-600 dark:text-red-500 mb-2">Application Error</h2>
+            <p className="text-lg text-zinc-700 dark:text-zinc-300">Could not load application data.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md">
+              This can happen if the local database becomes corrupted. Resetting the application data will resolve this.
+            </p>
+            <Button onClick={handleResetAppData} variant="danger" className="mt-6">
+              Reset Application Data
+            </Button>
+            <p className="text-xs text-zinc-500 mt-2">This will delete all your saved looks and models.</p>
+            <details className="mt-4 max-w-lg text-left">
+              <summary className="text-xs text-zinc-500 cursor-pointer">Error Details</summary>
+              <pre className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-800 p-2 rounded overflow-auto">{dbError}</pre>
+            </details>
+          </div>
+        );
     }
     
     if (isLoading) {

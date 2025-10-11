@@ -16,23 +16,38 @@ const initDB = (): Promise<IDBDatabase> => {
       return resolve(db);
     }
     console.log('[DB] Initializing database...');
+
+    const timeout = setTimeout(() => {
+        console.error('[DB] Database initialization timed out after 3 seconds.');
+        reject('Database initialization timed out. This can happen if the database is corrupted or locked.');
+    }, 3000);
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    const cleanupAndResolve = (result: IDBDatabase) => {
+        clearTimeout(timeout);
+        resolve(result);
+    };
+
+    const cleanupAndReject = (reason?: any) => {
+        clearTimeout(timeout);
+        reject(reason);
+    };
 
     request.onerror = () => {
       console.error('[DB] Database initialization error:', request.error);
-      reject('Error opening IndexedDB.');
+      cleanupAndReject('Error opening IndexedDB.');
     };
 
     request.onblocked = () => {
         console.warn('[DB] Database upgrade blocked. Please close other open tabs with this app.');
-        // This rejection helps the app avoid getting stuck in a loading state.
-        reject('Database upgrade is blocked. Please close other tabs running this application and reload.');
+        cleanupAndReject('Database upgrade is blocked. Please close other tabs running this application and reload.');
     };
 
     request.onsuccess = () => {
       console.log('[DB] Database opened successfully.');
       db = request.result;
-      resolve(db);
+      cleanupAndResolve(db);
     };
 
     request.onupgradeneeded = (event) => {
@@ -135,5 +150,32 @@ export const remove = async (storeName: string, id: number): Promise<void> => {
 
     request.onerror = () => reject(`Error deleting from ${storeName}`);
     request.onsuccess = () => resolve();
+  });
+};
+
+export const deleteDB = (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    console.warn('[DB] Deleting entire database...');
+    // Ensure any existing connection is closed before deletion.
+    if (db) {
+      db.close();
+      db = null;
+    }
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    
+    request.onerror = () => {
+      console.error('[DB] Error deleting database.', request.error);
+      reject('Could not delete the database.');
+    };
+    
+    request.onsuccess = () => {
+      console.log('[DB] Database deleted successfully.');
+      resolve();
+    };
+
+    request.onblocked = () => {
+      console.warn('[DB] Database deletion blocked. Please close other tabs and try again.');
+      reject('Database deletion is blocked.');
+    };
   });
 };
