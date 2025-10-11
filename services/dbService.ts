@@ -1,10 +1,11 @@
-import { Look, Model } from '../types';
+import { Look, Model, Lookboard } from '../types';
 
 const DB_NAME = 'OunassAIStudioDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version to trigger upgrade
 const STORES = {
   MODELS: 'models',
   LOOKS: 'looks',
+  LOOKBOARDS: 'lookboards', // Added lookboards store
 };
 
 let db: IDBDatabase | null = null;
@@ -36,6 +37,11 @@ const initDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains(STORES.LOOKS)) {
         const looksStore = dbInstance.createObjectStore(STORES.LOOKS, { keyPath: 'id', autoIncrement: true });
         looksStore.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+      // Added creation logic for the new lookboards store
+      if (!dbInstance.objectStoreNames.contains(STORES.LOOKBOARDS)) {
+        const lookboardsStore = dbInstance.createObjectStore(STORES.LOOKBOARDS, { keyPath: 'id', autoIncrement: true });
+        lookboardsStore.createIndex('publicId', 'publicId', { unique: true });
       }
     };
   });

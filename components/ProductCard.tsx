@@ -7,7 +7,7 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const productUrl = `https://www.ounass.ae/product/${product.urlKey}`;
+  const productUrl = `https://www.ounass.ae/${product.urlKey}.html`;
 
   return (
     <div className="w-48 flex-shrink-0">

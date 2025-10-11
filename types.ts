@@ -119,3 +119,26 @@ export interface ArtDirectorPrompt {
         };
     };
 }
+
+// --- START: New Types for Lookboards ---
+export interface Comment {
+  id: string;
+  author: 'stylist' | 'client';
+  text: string;
+  createdAt: number;
+}
+
+export interface Lookboard {
+  id?: number;
+  publicId: string;
+  title: string;
+  note?: string;
+  lookIds: number[];
+  // Key is lookId, value is the vote
+  feedbacks: Record<number, 'liked' | 'disliked'>;
+  // Key is lookId, value is an array of comments
+  comments: Record<number, Comment[]>;
+  createdAt: number;
+  updatedAt: number;
+}
+// --- END: New Types for Lookboards ---
