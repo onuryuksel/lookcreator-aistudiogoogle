@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
@@ -22,9 +23,9 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
-  const [showProductRightArrow, setShowProductRightArrow] = useState(true);
+  const [showProductRightArrow, setShowProductRightArrow] = useState(false);
   const [showVariationLeftArrow, setShowVariationLeftArrow] = useState(false);
-  const [showVariationRightArrow, setShowVariationRightArrow] = useState(true);
+  const [showVariationRightArrow, setShowVariationRightArrow] = useState(false);
   const [isAspectRatioModalOpen, setIsAspectRatioModalOpen] = useState(false);
 
   // A memoized, unique list of all image URLs for this look.
@@ -96,8 +97,9 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const handleProductScroll = () => {
     if (productsScrollContainerRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = productsScrollContainerRef.current;
+      const isScrollable = scrollWidth > clientWidth;
       setShowProductLeftArrow(scrollLeft > 0);
-      setShowProductRightArrow(scrollLeft < scrollWidth - clientWidth - 1); // -1 for precision issues
+      setShowProductRightArrow(isScrollable && scrollLeft < scrollWidth - clientWidth - 1);
     }
   };
   
@@ -192,9 +194,9 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
       {/* --- END: Header Bar --- */}
 
       {/* --- START: Main Content Grid --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         {/* --- START: Left Column (Image) --- */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
           <div className="sticky top-24">
             <div className="aspect-[3/4] relative">
               <ImageViewer src={selectedImage} alt="Selected look" />
@@ -212,8 +214,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
         {/* --- END: Left Column --- */}
 
 
-        {/* --- START: Right Column (Products) --- */}
-        <div className="lg:col-span-2">
+        {/* --- START: Right Column (Products & Variations) --- */}
+        <div className="lg:col-span-3 flex flex-col gap-8">
             <Card>
                 <h3 className="text-lg font-bold mb-4">Products in this Look ({look.products.length})</h3>
                  <div className="relative">
@@ -234,56 +236,55 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                     )}
                 </div>
             </Card>
-        </div>
-        {/* --- END: Right Column --- */}
-      </div>
 
-      {/* --- START: Full-Width Variations Section --- */}
-      {allImages.length > 1 && (
-        <div className="mt-8">
-          <h3 className="text-lg font-bold mb-4">Variations ({allImages.length})</h3>
-           <div className="relative">
-            {showVariationLeftArrow && (
-                <button onClick={() => scrollVariations('left')} className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 dark:bg-zinc-800/80 rounded-full p-2 shadow-md hover:scale-110 transition-transform">
-                    <ChevronLeftIcon />
-                </button>
-            )}
-            <div ref={variationsScrollContainerRef} className="flex gap-4 overflow-x-auto p-2 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
-              {allImages.map((img, index) => (
-                <div
-                  key={index}
-                  className="relative group w-28 aspect-[3/4] flex-shrink-0"
-                >
-                  <div
-                    onClick={() => setSelectedImage(img)}
-                    className={`w-full h-full rounded-md overflow-hidden cursor-pointer ring-2 ring-offset-2 dark:ring-offset-zinc-950 ${selectedImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
-                  >
-                    <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-800" />
-                  </div>
-                   {allImages.length > 1 && (
-                      <button
-                          onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteVariation(img);
-                          }}
-                          className="absolute top-1 right-1 z-10 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity"
-                          aria-label="Delete variation"
+            {/* Variations are now inside the right column */}
+            {allImages.length > 1 && (
+              <Card className="flex-grow flex flex-col">
+                <h3 className="text-lg font-bold mb-4 flex-shrink-0">Variations ({allImages.length})</h3>
+                <div className="relative flex-grow flex items-center">
+                  {showVariationLeftArrow && (
+                      <button onClick={() => scrollVariations('left')} className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 dark:bg-zinc-800/80 rounded-full p-2 shadow-md hover:scale-110 transition-transform">
+                          <ChevronLeftIcon />
+                      </button>
+                  )}
+                  <div ref={variationsScrollContainerRef} className="flex w-full gap-4 overflow-x-auto p-2 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
+                    {allImages.map((img, index) => (
+                      <div
+                        key={index}
+                        className="relative group w-28 aspect-[3/4] flex-shrink-0"
                       >
-                          <XIcon className="h-4 w-4" />
+                        <div
+                          onClick={() => setSelectedImage(img)}
+                          className={`w-full h-full rounded-md overflow-hidden cursor-pointer ring-2 ring-offset-2 dark:ring-offset-zinc-950 ${selectedImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                        >
+                          <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-800" />
+                        </div>
+                         {allImages.length > 1 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteVariation(img);
+                                }}
+                                className="absolute top-1 right-1 z-10 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity"
+                                aria-label="Delete variation"
+                            >
+                                <XIcon className="h-4 w-4" />
+                            </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                   {showVariationRightArrow && (
+                      <button onClick={() => scrollVariations('right')} className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 dark:bg-zinc-800/80 rounded-full p-2 shadow-md hover:scale-110 transition-transform">
+                          <ChevronRightIcon />
                       </button>
                   )}
                 </div>
-              ))}
-            </div>
-             {showVariationRightArrow && (
-                <button onClick={() => scrollVariations('right')} className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 dark:bg-zinc-800/80 rounded-full p-2 shadow-md hover:scale-110 transition-transform">
-                    <ChevronRightIcon />
-                </button>
+              </Card>
             )}
-          </div>
         </div>
-      )}
-      {/* --- END: Variations Section --- */}
+        {/* --- END: Right Column --- */}
+      </div>
       
       {isAspectRatioModalOpen && (
         <AspectRatioModal
