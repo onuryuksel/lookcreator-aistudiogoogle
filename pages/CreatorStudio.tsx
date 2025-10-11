@@ -16,6 +16,8 @@ import LifestyleShootPage from './LifestyleShootPage';
 
 import { Modal, Button, Spinner } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
+import { SaveIcon } from '../components/Icons';
+import FullscreenImageViewer from '../components/FullscreenImageViewer';
 
 type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot';
 
@@ -33,6 +35,8 @@ const CreatorStudio: React.FC = () => {
     const [tryOnSteps, setTryOnSteps] = useState<TryOnStep[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [finalLookImage, setFinalLookImage] = useState<string | null>(null);
+
 
     // Look detail/edit state
     const [activeLook, setActiveLook] = useState<Look | null>(null);
@@ -126,6 +130,7 @@ const CreatorStudio: React.FC = () => {
     // --- Look Creation ---
     const handleAddSku = async () => {
         setError(null);
+        setFinalLookImage(null);
         const skus = skuInput.split(',').map(s => s.trim()).filter(Boolean);
         if (skus.length === 0) return;
 
@@ -155,7 +160,6 @@ const CreatorStudio: React.FC = () => {
             setTryOnSteps(initialSteps);
 
             let currentModelImage = selectedModel.imageUrl;
-            const completedSteps: TryOnStep[] = [];
 
             for (let i = 0; i < fetchedSkus.length; i++) {
                 const sku = fetchedSkus[i];
@@ -165,29 +169,16 @@ const CreatorStudio: React.FC = () => {
                     const previousProducts = fetchedSkus.slice(0, i);
                     const newImage = await performVirtualTryOn(currentModelImage, selectedModel, sku, previousProducts);
                     
-                    const completedStep = { sku, inputImage: currentModelImage, outputImage: newImage, status: 'completed' as const };
-                    completedSteps.push(completedStep);
                     currentModelImage = newImage;
                     
-                    setTryOnSteps(prev => prev.map((step, index) => index === i ? completedStep : step));
+                    setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, outputImage: newImage, status: 'completed' } : step));
                 } catch (err) {
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
                     throw err; // Stop the process
                 }
             }
             
-            // --- Save the final look ---
-            const newLook: Look = {
-                id: db.generateId(),
-                model: selectedModel,
-                products: fetchedSkus,
-                finalImage: currentModelImage,
-                variations: [],
-                createdAt: Date.now()
-            };
-            const updatedLooks = [...looks, newLook];
-            setLooks(updatedLooks);
-            await db.saveLooks(updatedLooks);
+            setFinalLookImage(currentModelImage);
 
         } catch (err) {
             console.error("Error creating look:", err);
@@ -199,13 +190,86 @@ const CreatorStudio: React.FC = () => {
     };
     
     const handleRegenerateStep = async (stepIndex: number) => {
-        // This is a complex feature to implement fully. For now, it will re-run the whole process up to that step.
-        alert("Regeneration is a complex process. For now, please restart the look creation if a step fails.");
+        const selectedModel = models.find(m => m.id === selectedModelId);
+        if (!selectedModel) {
+            setError("No model selected for regeneration.");
+            return;
+        }
+
+        setIsGenerating(true);
+        setError(null);
+        setFinalLookImage(null);
+
+        try {
+            const stepsToReset = tryOnSteps.map((step, index) => 
+                index >= stepIndex ? { ...step, outputImage: null, status: 'pending' as const } : step
+            );
+            setTryOnSteps(stepsToReset);
+
+            const startImage = stepIndex === 0 ? selectedModel.imageUrl : tryOnSteps[stepIndex - 1].outputImage;
+            if (!startImage) {
+                throw new Error("Cannot regenerate. The previous step's image is missing.");
+            }
+
+            let currentModelImage = startImage;
+            const allSkus = tryOnSteps.map(step => step.sku);
+
+            for (let i = stepIndex; i < tryOnSteps.length; i++) {
+                const sku = allSkus[i];
+                setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'generating', inputImage: currentModelImage } : step));
+
+                try {
+                    const previousProducts = allSkus.slice(0, i);
+                    const newImage = await performVirtualTryOn(currentModelImage, selectedModel, sku, previousProducts);
+                    currentModelImage = newImage;
+                    setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, outputImage: newImage, status: 'completed' } : step));
+                } catch (err) {
+                    setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
+                    throw err;
+                }
+            }
+            
+            setFinalLookImage(currentModelImage);
+
+        } catch (err) {
+            console.error("Error regenerating look:", err);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred during regeneration.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
+
+    const handleSaveLook = async () => {
+        const selectedModel = models.find(m => m.id === selectedModelId);
+        if (!finalLookImage || !selectedModel) {
+            setError("Cannot save look. Final image or model is missing.");
+            return;
+        }
+
+        const newLook: Look = {
+            id: db.generateId(),
+            model: selectedModel,
+            products: tryOnSteps.map(step => step.sku),
+            finalImage: finalLookImage,
+            variations: [],
+            createdAt: Date.now()
+        };
+
+        const updatedLooks = [...looks, newLook];
+        setLooks(updatedLooks);
+        await db.saveLooks(updatedLooks);
+
+        // Reset for next creation
+        setTryOnSteps([]);
+        setFinalLookImage(null);
+        alert("Look saved to 'My Looks'!");
+    };
+
 
     // --- View Navigation & Look Management ---
     const handleViewLookbook = () => {
         setTryOnSteps([]);
+        setFinalLookImage(null);
         setView('lookbook');
     };
     
@@ -285,6 +349,13 @@ const CreatorStudio: React.FC = () => {
                                     onRegenerateStep={handleRegenerateStep}
                                 />
                             )}
+                            {finalLookImage && !isGenerating && (
+                                <div className="mt-6 text-center">
+                                    <Button variant="primary" onClick={handleSaveLook} className="py-3 px-6 text-lg">
+                                        <SaveIcon /> Add to Lookbook
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 );
@@ -337,11 +408,12 @@ const CreatorStudio: React.FC = () => {
                     />
                 </Modal>
             )}
-            {isImageModalOpen && (
-                <Modal isOpen={isImageModalOpen} onClose={() => setIsImageModalOpen(false)} title="Model Image">
-                    <img src={imageModalUrl} alt="Model" className="max-w-full max-h-[80vh] mx-auto" />
-                </Modal>
-            )}
+            <FullscreenImageViewer
+                isOpen={isImageModalOpen}
+                onClose={() => setIsImageModalOpen(false)}
+                src={imageModalUrl}
+                alt="Model Image"
+            />
         </div>
     );
 };

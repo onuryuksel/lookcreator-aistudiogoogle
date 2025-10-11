@@ -3,12 +3,13 @@ import ReactDOM from 'react-dom';
 import { XIcon } from './Icons';
 
 // Card
-interface CardProps {
+// FIX: Update CardProps to extend React.HTMLAttributes<HTMLDivElement> to allow passing standard div props like onClick.
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
 }
-export const Card: React.FC<CardProps> = ({ children, className = '' }) => (
-  <div className={`bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 ${className}`}>
+export const Card: React.FC<CardProps> = ({ children, className = '', ...props }) => (
+  <div className={`bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 ${className}`} {...props}>
     {children}
   </div>
 );

@@ -1,11 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Look, Lookboard } from '../types';
-import { Card, Button } from '../components/common';
+import * as db from '../services/dbService';
+import { Button, Card } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
 import ShareLinkModal from '../components/ShareLinkModal';
-import * as db from '../services/dbService';
+import { ShareIcon } from '../components/Icons';
 
 interface LookbookProps {
   looks: Look[];
@@ -14,143 +15,143 @@ interface LookbookProps {
   onUpdateLookboards: (boards: Lookboard[]) => void;
 }
 
-type Tab = 'looks' | 'boards';
-
 const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, onUpdateLookboards }) => {
-    const [activeTab, setActiveTab] = useState<Tab>('looks');
-    const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
-    const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
-    const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
-    const [newlyCreatedBoard, setNewlyCreatedBoard] = useState<Lookboard | null>(null);
+  const [activeTab, setActiveTab] = useState<'looks' | 'boards'>('looks');
+  const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
+  const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+  const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
+  const [newlyCreatedBoard, setNewlyCreatedBoard] = useState<Lookboard | null>(null);
 
-    const sortedLooks = useMemo(() => {
-        return [...looks].sort((a, b) => b.createdAt - a.createdAt);
-    }, [looks]);
+  const handleToggleLookSelection = (lookId: number) => {
+    setSelectedLookIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(lookId)) {
+        newSet.delete(lookId);
+      } else {
+        newSet.add(lookId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCreateLookboard = async (title: string, note?: string) => {
+    const newBoard: Lookboard = {
+      id: db.generateId(),
+      publicId: Math.random().toString(36).substring(2, 10),
+      title,
+      note,
+      lookIds: Array.from(selectedLookIds),
+      createdAt: Date.now(),
+      feedbacks: {},
+      comments: {}
+    };
+
+    const updatedLookboards = [...lookboards, newBoard];
+    onUpdateLookboards(updatedLookboards);
     
-    const sortedLookboards = useMemo(() => {
-        return [...lookboards].sort((a, b) => b.createdAt - a.createdAt);
-    }, [lookboards]);
+    setNewlyCreatedBoard(newBoard);
+    setIsCreateBoardModalOpen(false);
+    setIsShareLinkModalOpen(true);
+    setSelectedLookIds(new Set());
+  };
 
-    const toggleLookSelection = (id: number) => {
-        setSelectedLookIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(id)) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
-    };
-    
-    const handleSelectAll = () => {
-        if (selectedLookIds.size === looks.length) {
-            setSelectedLookIds(new Set());
-        } else {
-            setSelectedLookIds(new Set(looks.map(l => l.id)));
-        }
-    };
-    
-    const handleCreateBoard = async (title: string, note?: string) => {
-        const newBoard: Lookboard = {
-            id: db.generateId(),
-            publicId: `board_${Math.random().toString(36).substring(2, 11)}`,
-            title,
-            note,
-            lookIds: Array.from(selectedLookIds),
-            createdAt: Date.now(),
-        };
-        const updatedBoards = [...lookboards, newBoard];
-        onUpdateLookboards(updatedBoards);
-        
-        // Reset state and show share link modal
-        setSelectedLookIds(new Set());
-        setIsCreateBoardModalOpen(false);
-        setNewlyCreatedBoard(newBoard);
-        setIsShareLinkModalOpen(true);
-    };
+  const handleDeleteLookboard = (boardId: number) => {
+    const updatedLookboards = lookboards.filter(board => board.id !== boardId);
+    onUpdateLookboards(updatedLookboards);
+  };
+  
+  const selectedLooksCount = selectedLookIds.size;
 
-    const handleDeleteBoard = (id: number) => {
-        const updatedBoards = lookboards.filter(b => b.id !== id);
-        onUpdateLookboards(updatedBoards);
-    };
+  return (
+    <div className="p-6 space-y-6">
+      <div className="border-b border-zinc-200 dark:border-zinc-800">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('looks')}
+            className={`${
+              activeTab === 'looks'
+                ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-100'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-200'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            My Looks ({looks.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('boards')}
+            className={`${
+              activeTab === 'boards'
+                ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-100'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-200'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Shared Boards ({lookboards.length})
+          </button>
+        </nav>
+      </div>
 
-    const renderLooksTab = () => (
-        <>
-             {looks.length > 0 && (
-                <div className="mb-4 flex justify-between items-center">
-                    <div>
-                        <Button variant="secondary" onClick={handleSelectAll}>
-                            {selectedLookIds.size === looks.length ? 'Deselect All' : 'Select All'}
-                        </Button>
-                        <span className="ml-4 text-sm text-zinc-500">{selectedLookIds.size} selected</span>
-                    </div>
-                    <Button onClick={() => setIsCreateBoardModalOpen(true)} disabled={selectedLookIds.size === 0}>
-                        Share Looks...
-                    </Button>
-                </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {sortedLooks.map(look => (
-                    <div key={look.id} className="relative group">
-                        <Card 
-                            onClick={() => onSelectLook(look)} 
-                            className="p-2 cursor-pointer aspect-[3/4] flex items-center justify-center transition-all duration-200 hover:scale-105"
-                        >
-                            <img src={look.finalImage} alt={`Look created on ${new Date(look.createdAt).toLocaleDateString()}`} className="max-w-full max-h-full object-contain" />
-                        </Card>
-                        <div 
-                            className={`absolute top-2 left-2 w-5 h-5 rounded-sm border-2 bg-white/50 backdrop-blur-sm cursor-pointer ${selectedLookIds.has(look.id) ? 'bg-zinc-900 border-zinc-900 dark:bg-zinc-200 dark:border-zinc-200' : 'border-zinc-400'}`}
-                            onClick={() => toggleLookSelection(look.id)}
-                        >
-                            {selectedLookIds.has(look.id) && <div className="w-full h-full flex items-center justify-center text-white dark:text-black">✓</div>}
+      {activeTab === 'looks' && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">My Looks</h2>
+              <Button onClick={() => setIsCreateBoardModalOpen(true)} disabled={selectedLooksCount === 0}>
+                  <ShareIcon/>
+                  Share {selectedLooksCount > 0 ? `${selectedLooksCount} Look${selectedLooksCount > 1 ? 's' : ''}` : 'Looks'}
+              </Button>
+          </div>
+
+          {looks.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {looks.map(look => (
+                <div key={look.id} className="relative group">
+                    <Card
+                        onClick={() => onSelectLook(look)}
+                        className="p-0 overflow-hidden cursor-pointer transition-shadow hover:shadow-xl"
+                    >
+                        <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800">
+                        <img src={look.finalImage} alt={`Look ${look.id}`} className="w-full h-full object-contain"/>
                         </div>
+                    </Card>
+                     <div 
+                        onClick={() => handleToggleLookSelection(look.id)}
+                        className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer bg-white/70 backdrop-blur-sm border border-zinc-300"
+                    >
+                        {selectedLookIds.has(look.id) && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
                     </div>
-                ))}
-            </div>
-            {looks.length === 0 && (
-                <div className="text-center py-20 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
-                    <h3 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300">No Looks Created Yet</h3>
-                    <p className="mt-2 text-zinc-500">Go to the Creator Studio to start building your first look.</p>
                 </div>
-            )}
-        </>
-    );
-
-    const renderBoardsTab = () => (
-        <LookboardsList lookboards={sortedLookboards} onDelete={handleDeleteBoard} />
-    );
-
-    return (
-        <div className="p-6">
-            <div className="mb-6 border-b border-zinc-200 dark:border-zinc-700">
-                <div className="flex space-x-8">
-                    <button onClick={() => setActiveTab('looks')} className={`py-2 px-1 border-b-2 font-medium ${activeTab === 'looks' ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-200' : 'border-transparent text-zinc-500 hover:border-zinc-300'}`}>
-                        My Looks
-                    </button>
-                    <button onClick={() => setActiveTab('boards')} className={`py-2 px-1 border-b-2 font-medium ${activeTab === 'boards' ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-200' : 'border-transparent text-zinc-500 hover:border-zinc-300'}`}>
-                        Shared Boards
-                    </button>
-                </div>
+              ))}
             </div>
-
-            {activeTab === 'looks' ? renderLooksTab() : renderBoardsTab()}
-
-            <CreateLookboardModal
-                isOpen={isCreateBoardModalOpen}
-                onClose={() => setIsCreateBoardModalOpen(false)}
-                onSubmit={handleCreateBoard}
-            />
-
-            {newlyCreatedBoard && (
-                <ShareLinkModal
-                    isOpen={isShareLinkModalOpen}
-                    onClose={() => setIsShareLinkModalOpen(false)}
-                    board={newlyCreatedBoard}
-                />
-            )}
+          ) : (
+             <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <p className="text-lg text-zinc-600 dark:text-zinc-400">Your lookbook is empty.</p>
+                <p className="text-zinc-500 dark:text-zinc-500 mt-2">Go to the Creator Studio to start creating looks.</p>
+            </div>
+          )}
         </div>
-    );
+      )}
+
+      {activeTab === 'boards' && (
+        <div>
+           <h2 className="text-2xl font-bold mb-4">Shared Boards</h2>
+           <LookboardsList lookboards={lookboards} onDelete={handleDeleteLookboard} />
+        </div>
+      )}
+
+      <CreateLookboardModal
+        isOpen={isCreateBoardModalOpen}
+        onClose={() => setIsCreateBoardModalOpen(false)}
+        onSubmit={handleCreateLookboard}
+      />
+      
+      {newlyCreatedBoard && (
+        <ShareLinkModal
+            isOpen={isShareLinkModalOpen}
+            onClose={() => setIsShareLinkModalOpen(false)}
+            board={newlyCreatedBoard}
+        />
+      )}
+
+    </div>
+  );
 };
 
 export default Lookbook;

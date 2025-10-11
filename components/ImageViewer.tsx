@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, Spinner } from './common';
+import { Spinner } from './common';
 import { DownloadIcon, ZoomInIcon } from './Icons';
+import FullscreenImageViewer from './FullscreenImageViewer';
 
 interface ImageViewerProps {
   src: string;
@@ -43,10 +44,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, isLoading = false, 
         </div>
       )}
 
-      {/* Zoom Modal */}
-      <Modal isOpen={isZoomModalOpen} onClose={() => setIsZoomModalOpen(false)} title="Image Preview">
-        <img src={src} alt={alt} className="max-w-full max-h-[80vh] mx-auto" />
-      </Modal>
+      {/* Fullscreen Viewer */}
+      <FullscreenImageViewer
+        isOpen={isZoomModalOpen}
+        onClose={() => setIsZoomModalOpen(false)}
+        src={src}
+        alt={alt}
+      />
     </div>
   );
 };
