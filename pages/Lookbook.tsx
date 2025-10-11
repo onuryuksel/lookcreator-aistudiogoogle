@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { Look, Lookboard } from '../types';
 import * as db from '../services/dbService';
-import { Button, Card } from '../components/common';
+import { Button } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
 import ShareLinkModal from '../components/ShareLinkModal';
@@ -100,23 +101,27 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
           </div>
 
           {looks.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-4 space-y-4">
               {looks.map(look => (
-                <div key={look.id} className="relative group">
-                    <Card
-                        onClick={() => onSelectLook(look)}
-                        className="p-0 overflow-hidden cursor-pointer transition-shadow hover:shadow-xl"
-                    >
-                        <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800">
-                        <img src={look.finalImage} alt={`Look ${look.id}`} className="w-full h-full object-contain"/>
-                        </div>
-                    </Card>
-                     <div 
-                        onClick={() => handleToggleLookSelection(look.id)}
-                        className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer bg-white/70 backdrop-blur-sm border border-zinc-300"
-                    >
-                        {selectedLookIds.has(look.id) && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
-                    </div>
+                <div 
+                  key={look.id} 
+                  className="relative group break-inside-avoid cursor-pointer"
+                  onClick={() => onSelectLook(look)}
+                >
+                  <img 
+                    src={look.finalImage} 
+                    alt={`Look ${look.id}`} 
+                    className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80"
+                  />
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleLookSelection(look.id);
+                    }}
+                    className="absolute top-3 left-3 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer bg-white/80 backdrop-blur-sm border border-zinc-300 dark:bg-zinc-900/80 dark:border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {selectedLookIds.has(look.id) && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
+                  </div>
                 </div>
               ))}
             </div>
