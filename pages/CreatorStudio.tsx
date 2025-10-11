@@ -1,256 +1,349 @@
-import React, { useState, useEffect } from 'react';
-import { Model, Look, OunassSKU, TryOnStep } from '../types';
-import CreatorPanel from '../components/CreatorPanel';
-import ModelPanel from '../components/ModelPanel';
-import TryOnSequence from '../components/TryOnSequence';
-import ModelCreationForm from '../components/ModelCreationForm';
-import { Modal, Button, Spinner } from '../components/common';
-import { SaveIcon } from '../components/Icons';
-import { fetchSkuData } from '../services/ounassService';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Model, OunassSKU, TryOnStep, Look, Lookboard } from '../types';
+import * as db from '../services/dbService';
+import * as ounassService from '../services/ounassService';
 import { generateModelFromForm, generateModelFromPhoto } from '../services/modelGenerationService';
 import { performVirtualTryOn } from '../services/virtualTryOnService';
 
-interface CreatorStudioProps {
-  models: Model[];
-  onLookSaved: (look: Omit<Look, 'id'>) => void;
-  onModelCreated: (model: Omit<Model, 'id'>) => Promise<Model>;
-  onModelDeleted: (id: number) => void;
-}
+import ModelPanel from '../components/ModelPanel';
+import CreatorPanel from '../components/CreatorPanel';
+import TryOnSequence from '../components/TryOnSequence';
+import Lookbook from './Lookbook';
+import LookDetail from './LookDetail';
+import ConversationalEditPage from './ConversationalEditPage';
+import LifestyleShootPage from './LifestyleShootPage';
 
-const CreatorStudio: React.FC<CreatorStudioProps> = ({ models, onLookSaved, onModelCreated, onModelDeleted }) => {
-  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [skuInput, setSkuInput] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isCreatingModel, setIsCreatingModel] = useState(false);
-  const [tryOnSteps, setTryOnSteps] = useState<TryOnStep[]>([]);
-  
-  const [isCreateModelModalOpen, setIsCreateModelModalOpen] = useState(false);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [imageModalUrl, setImageModalUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
+import { Modal, Button, Spinner } from '../components/common';
+import ModelCreationForm from '../components/ModelCreationForm';
 
-  const selectedModel = models.find(m => m.id === selectedModelId);
-  const canSave = tryOnSteps.length > 0 && tryOnSteps.every(s => s.status === 'completed');
+type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot';
 
-  useEffect(() => {
-    if (models.length > 0 && !selectedModelId) {
-      setSelectedModelId(models[0].id!);
-    }
-    if (selectedModelId && !models.find(m => m.id === selectedModelId)) {
-      setSelectedModelId(models.length > 0 ? models[0].id! : null);
-    }
-  }, [models, selectedModelId]);
+const CreatorStudio: React.FC = () => {
+    // Main state
+    const [view, setView] = useState<View>('creator');
+    const [models, setModels] = useState<Model[]>([]);
+    const [looks, setLooks] = useState<Look[]>([]);
+    const [lookboards, setLookboards] = useState<Lookboard[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-  const handleSelectModel = (id: number) => {
-    if (isGenerating) return;
-    setSelectedModelId(id);
-    setTryOnSteps([]);
-    setSkuInput('');
-    setError(null);
-  };
+    // Creator view state
+    const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+    const [skuInput, setSkuInput] = useState('');
+    const [tryOnSteps, setTryOnSteps] = useState<TryOnStep[]>([]);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  const processTryOnQueue = async (steps: TryOnStep[]) => {
-    let currentSteps = [...steps];
-    
-    for (let i = 0; i < currentSteps.length; i++) {
-        if(currentSteps[i].status === 'completed') continue;
+    // Look detail/edit state
+    const [activeLook, setActiveLook] = useState<Look | null>(null);
 
-        const previousStep = i > 0 ? currentSteps[i-1] : null;
-        const inputImage = previousStep ? previousStep.outputImage : selectedModel!.imageUrl;
-        const previousProducts = currentSteps.slice(0, i).map(s => s.sku);
-        
-        currentSteps = currentSteps.map((step, idx) => 
-            idx === i ? { ...step, status: 'generating', inputImage } : step
-        );
-        setTryOnSteps(currentSteps);
-        
-        try {
-            const outputImage = await performVirtualTryOn(inputImage, selectedModel!, currentSteps[i].sku, previousProducts);
-            currentSteps = currentSteps.map((step, idx) => 
-                idx === i ? { ...step, status: 'completed', outputImage } : step
-            );
-            setTryOnSteps(currentSteps);
-        } catch (err) {
-            console.error(`Error processing step ${i + 1} for SKU ${currentSteps[i].sku.sku}:`, err);
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setError(`Failed at step ${i + 1}: ${errorMessage}`);
-            currentSteps = currentSteps.map((step, idx) => 
-                idx === i ? { ...step, status: 'failed' } : step
-            );
-            setTryOnSteps(currentSteps);
-            return; // Stop processing on failure
+    // Modals state
+    const [isCreateModelModalOpen, setIsCreateModelModalOpen] = useState(false);
+    const [isCreatingModel, setIsCreatingModel] = useState(false);
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+    const [imageModalUrl, setImageModalUrl] = useState('');
+
+    // --- Data Loading ---
+    const loadData = useCallback(async () => {
+        setIsLoading(true);
+        const [loadedModels, loadedLooks, loadedLookboards] = await Promise.all([db.getModels(), db.getLooks(), db.getLookboards()]);
+        setModels(loadedModels);
+        setLooks(loadedLooks);
+        setLookboards(loadedLookboards);
+        if (loadedModels.length > 0 && !selectedModelId) {
+            setSelectedModelId(loadedModels[0].id);
         }
-    }
-  }
+        setIsLoading(false);
+    }, [selectedModelId]);
 
-  const handleAddSku = async () => {
-    if (!selectedModel || !skuInput.trim()) return;
-    
-    setIsGenerating(true);
-    setError(null);
-    setTryOnSteps([]);
+    useEffect(() => {
+        loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
 
-    const skuCodes = skuInput.split(',').map(s => s.trim()).filter(Boolean);
-    const newSteps: TryOnStep[] = [];
-    
-    for (const sku of skuCodes) {
-      const product = await fetchSkuData(sku);
-      if (product) {
-        newSteps.push({
-          sku: product,
-          inputImage: '',
-          outputImage: '',
-          prompt: '',
-          status: 'pending',
-        });
-      } else {
-        setError(`SKU not found: ${sku}`);
-        setIsGenerating(false);
-        return;
-      }
-    }
-
-    setTryOnSteps(newSteps);
-    await processTryOnQueue(newSteps);
-
-    setIsGenerating(false);
-  };
-
-  const handleRegenerateStep = async (stepIndex: number) => {
-    setIsGenerating(true);
-    setError(null);
-    
-    // FIX: Explicitly type the `stepsToProcess` array as `TryOnStep[]`.
-    // This resolves an issue where TypeScript's type inference was widening the `status` property
-    // to a generic `string` instead of preserving its literal union type, causing a type mismatch.
-    const stepsToProcess: TryOnStep[] = tryOnSteps.map((step, index) => 
-      index >= stepIndex ? { ...step, status: 'pending', outputImage: '' } : step
-    );
-    setTryOnSteps(stepsToProcess);
-
-    await processTryOnQueue(stepsToProcess);
-    
-    setIsGenerating(false);
-  };
-
-  const handleSaveLook = () => {
-    if (!canSave || !selectedModel) return;
-
-    const finalImage = tryOnSteps[tryOnSteps.length - 1].outputImage;
-    const products = tryOnSteps.map(step => step.sku);
-
-    const newLook: Omit<Look, 'id'> = {
-      finalImage,
-      products,
-      baseImage: selectedModel.imageUrl,
-      createdAt: Date.now(),
+    // --- Model Management ---
+    const handleCreateModelFromScratch = async (formData: Omit<Model, 'imageUrl' | 'id'>) => {
+        setIsCreatingModel(true);
+        setError(null);
+        try {
+            const { imageUrl, name } = await generateModelFromForm(formData);
+            const newModel: Model = {
+                id: db.generateId(),
+                imageUrl,
+                name: name || formData.name || 'New Model',
+                ...formData
+            };
+            const updatedModels = [...models, newModel];
+            setModels(updatedModels);
+            await db.saveModels(updatedModels);
+            setSelectedModelId(newModel.id);
+            setIsCreateModelModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'Failed to create model.');
+            throw err; // Re-throw to keep form in error state
+        } finally {
+            setIsCreatingModel(false);
+        }
     };
-    onLookSaved(newLook);
-    setTryOnSteps([]);
-    setSkuInput('');
-  };
 
-  const handleCreateModelFromScratch = async (formData: Omit<Model, 'imageUrl' | 'id'>) => {
-    setIsCreatingModel(true);
-    try {
-        const { imageUrl, name } = await generateModelFromForm(formData);
-        const newModelData = { ...formData, imageUrl, name };
-        const newModel = await onModelCreated(newModelData);
-        setSelectedModelId(newModel.id!);
-        setIsCreateModelModalOpen(false);
-    } catch (err) {
-        console.error("Error creating model from scratch:", err);
-        throw err;
-    } finally {
-        setIsCreatingModel(false);
-    }
-  };
-  
-  const handleCreateModelFromPhoto = async (photo: File, name: string) => {
-    setIsCreatingModel(true);
-    try {
-      const { imageUrl, metadata, name: generatedName } = await generateModelFromPhoto([photo], name);
-      const newModelData: Omit<Model, 'id'> = { ...metadata, imageUrl, name: generatedName };
-      const newModel = await onModelCreated(newModelData);
-      setSelectedModelId(newModel.id!);
-      setIsCreateModelModalOpen(false);
-    } catch (err) {
-      console.error("Error creating model from photo:", err);
-      throw err;
-    } finally {
-      setIsCreatingModel(false);
-    }
-  };
+    const handleCreateModelFromPhoto = async (photo: File, name: string) => {
+        setIsCreatingModel(true);
+        setError(null);
+        try {
+            const { imageUrl, metadata, name: generatedName } = await generateModelFromPhoto([photo], name);
+            const newModel: Model = {
+                id: db.generateId(),
+                imageUrl,
+                name: name || generatedName,
+                ...metadata
+            };
+            const updatedModels = [...models, newModel];
+            setModels(updatedModels);
+            await db.saveModels(updatedModels);
+            setSelectedModelId(newModel.id);
+            setIsCreateModelModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'Failed to create model from photo.');
+            throw err; // Re-throw to keep form in error state
+        } finally {
+            setIsCreatingModel(false);
+        }
+    };
 
-  const openImageModal = (imageUrl: string) => {
-    setImageModalUrl(imageUrl);
-    setIsImageModalOpen(true);
-  }
+    const handleDeleteModel = async (id: number) => {
+        if (window.confirm('Are you sure you want to delete this model?')) {
+            const updatedModels = models.filter(m => m.id !== id);
+            setModels(updatedModels);
+            await db.saveModels(updatedModels);
+            if (selectedModelId === id) {
+                setSelectedModelId(updatedModels.length > 0 ? updatedModels[0].id : null);
+            }
+        }
+    };
 
-  return (
-    <div className="flex flex-col lg:flex-row gap-8 h-full">
-      <div className="lg:w-1/3 xl:w-1/4">
-        <ModelPanel
-          models={models}
-          selectedModelId={selectedModelId}
-          onSelectModel={handleSelectModel}
-          onDeleteModel={onModelDeleted}
-          onOpenCreateModelModal={() => setIsCreateModelModalOpen(true)}
-          onOpenImageModal={openImageModal}
-        />
-      </div>
-      <div className="lg:w-2/3 xl:w-3/4 flex-1 flex flex-col gap-6">
-        <CreatorPanel
-          selectedModel={selectedModel}
-          skuInput={skuInput}
-          onSkuInputChange={setSkuInput}
-          onAddSku={handleAddSku}
-          isGenerating={isGenerating}
-        />
+    // --- Look Creation ---
+    const handleAddSku = async () => {
+        setError(null);
+        const skus = skuInput.split(',').map(s => s.trim()).filter(Boolean);
+        if (skus.length === 0) return;
 
-        {error && (
-            <div className="p-4 bg-red-100 dark:bg-red-900/40 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 rounded-lg">
-                <p className="font-bold">An Error Occurred</p>
-                <p className="text-sm">{error}</p>
-            </div>
-        )}
+        const selectedModel = models.find(m => m.id === selectedModelId);
+        if (!selectedModel) {
+            setError('Please select a model first.');
+            return;
+        }
 
-        {tryOnSteps.length > 0 && (
-          <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-            <TryOnSequence 
-                steps={tryOnSteps}
-                isGenerating={isGenerating}
-                onRegenerateStep={handleRegenerateStep}
-            />
-          </div>
-        )}
+        setIsGenerating(true);
 
-        {canSave && (
-          <div className="mt-auto pt-4 flex justify-end">
-            <Button onClick={handleSaveLook} disabled={isGenerating}>
-              <SaveIcon/>
-              Save to Lookbook
-            </Button>
-          </div>
-        )}
+        try {
+            const skuDataPromises = skus.map(ounassService.fetchSkuData);
+            const fetchedSkus = (await Promise.all(skuDataPromises)).filter((s): s is OunassSKU => s !== null);
 
-      </div>
+            if (fetchedSkus.length !== skus.length) {
+                const notFoundSkus = skus.filter(originalSku => !fetchedSkus.some(fetched => fetched.sku === originalSku));
+                throw new Error(`Could not find data for SKU(s): ${notFoundSkus.join(', ')}`);
+            }
+            
+            const initialSteps: TryOnStep[] = fetchedSkus.map(sku => ({
+                sku,
+                inputImage: '',
+                outputImage: null,
+                status: 'pending'
+            }));
+            setTryOnSteps(initialSteps);
 
-      <Modal isOpen={isCreateModelModalOpen} onClose={() => !isCreatingModel && setIsCreateModelModalOpen(false)} title="Create New Model">
-        <ModelCreationForm 
-          onClose={() => setIsCreateModelModalOpen(false)}
-          isCreating={isCreatingModel}
-          onCreateFromScratch={handleCreateModelFromScratch}
-          onCreateFromPhoto={handleCreateModelFromPhoto}
-        />
-      </Modal>
-      
-      <Modal isOpen={isImageModalOpen} onClose={() => setIsImageModalOpen(false)} title="Model Image">
-        <img src={imageModalUrl} alt="Model full view" className="max-w-full max-h-[80vh] mx-auto"/>
-      </Modal>
+            let currentModelImage = selectedModel.imageUrl;
+            const completedSteps: TryOnStep[] = [];
 
-    </div>
-  );
+            for (let i = 0; i < fetchedSkus.length; i++) {
+                const sku = fetchedSkus[i];
+                setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'generating', inputImage: currentModelImage } : step));
+                
+                try {
+                    const previousProducts = fetchedSkus.slice(0, i);
+                    const newImage = await performVirtualTryOn(currentModelImage, selectedModel, sku, previousProducts);
+                    
+                    const completedStep = { sku, inputImage: currentModelImage, outputImage: newImage, status: 'completed' as const };
+                    completedSteps.push(completedStep);
+                    currentModelImage = newImage;
+                    
+                    setTryOnSteps(prev => prev.map((step, index) => index === i ? completedStep : step));
+                } catch (err) {
+                    setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
+                    throw err; // Stop the process
+                }
+            }
+            
+            // --- Save the final look ---
+            const newLook: Look = {
+                id: db.generateId(),
+                model: selectedModel,
+                products: fetchedSkus,
+                finalImage: currentModelImage,
+                variations: [],
+                createdAt: Date.now()
+            };
+            const updatedLooks = [...looks, newLook];
+            setLooks(updatedLooks);
+            await db.saveLooks(updatedLooks);
+
+        } catch (err) {
+            console.error("Error creating look:", err);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsGenerating(false);
+            setSkuInput('');
+        }
+    };
+    
+    const handleRegenerateStep = async (stepIndex: number) => {
+        // This is a complex feature to implement fully. For now, it will re-run the whole process up to that step.
+        alert("Regeneration is a complex process. For now, please restart the look creation if a step fails.");
+    };
+
+    // --- View Navigation & Look Management ---
+    const handleViewLookbook = () => {
+        setTryOnSteps([]);
+        setView('lookbook');
+    };
+    
+    const handleSelectLook = (look: Look) => {
+        setActiveLook(look);
+        setView('look-detail');
+    };
+
+    const handleUpdateLook = async (updatedLook: Look) => {
+        const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
+        setLooks(updatedLooks);
+        await db.saveLooks(updatedLooks);
+        if (activeLook && activeLook.id === updatedLook.id) {
+            setActiveLook(updatedLook);
+        }
+    };
+
+    const handleDeleteLook = async (id: number) => {
+        const updatedLooks = looks.filter(l => l.id !== id);
+        setLooks(updatedLooks);
+        await db.saveLooks(updatedLooks);
+        setView('lookbook');
+        setActiveLook(null);
+    };
+
+    // --- Lookboards Management ---
+    const handleUpdateLookboards = async (boards: Lookboard[]) => {
+        setLookboards(boards);
+        await db.saveLookboards(boards);
+    };
+
+    const selectedModel = models.find(m => m.id === selectedModelId);
+
+    // --- UI Rendering ---
+    const renderHeader = () => (
+        <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
+            <h1 className="text-2xl font-bold">Ounass AI Studio</h1>
+            <nav className="flex gap-4">
+                <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Creator Studio</Button>
+                <Button variant={view === 'lookbook' ? 'primary' : 'secondary'} onClick={handleViewLookbook}>My Looks ({looks.length})</Button>
+            </nav>
+        </header>
+    );
+
+    const renderView = () => {
+        if (isLoading) {
+            return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Loading Studio...</span></div>;
+        }
+
+        switch (view) {
+            case 'creator':
+                return (
+                    <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+                        <div className="lg:col-span-1">
+                            <ModelPanel
+                                models={models}
+                                selectedModelId={selectedModelId}
+                                onSelectModel={setSelectedModelId}
+                                onDeleteModel={handleDeleteModel}
+                                onOpenCreateModelModal={() => setIsCreateModelModalOpen(true)}
+                                onOpenImageModal={(url) => { setImageModalUrl(url); setIsImageModalOpen(true); }}
+                            />
+                        </div>
+                        <div className="lg:col-span-2 space-y-6">
+                            <CreatorPanel
+                                selectedModel={selectedModel}
+                                skuInput={skuInput}
+                                onSkuInputChange={setSkuInput}
+                                onAddSku={handleAddSku}
+                                isGenerating={isGenerating}
+                            />
+                             {error && <div className="p-4 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 rounded-lg">{error}</div>}
+                            {tryOnSteps.length > 0 && (
+                                <TryOnSequence
+                                    steps={tryOnSteps}
+                                    isGenerating={isGenerating}
+                                    onRegenerateStep={handleRegenerateStep}
+                                />
+                            )}
+                        </div>
+                    </div>
+                );
+            case 'lookbook':
+                return <Lookbook 
+                    looks={looks}
+                    lookboards={lookboards} 
+                    onSelectLook={handleSelectLook}
+                    onUpdateLookboards={handleUpdateLookboards}
+                />;
+            case 'look-detail':
+                return activeLook ? <div className="p-6"><LookDetail 
+                    look={activeLook} 
+                    onBack={() => setView('lookbook')} 
+                    onDelete={handleDeleteLook}
+                    onUpdate={handleUpdateLook}
+                    onEdit={() => setView('edit-look')}
+                    onLifestyleShoot={() => setView('lifestyle-shoot')}
+                /></div> : null;
+            case 'edit-look':
+                 return activeLook ? <div className="p-6"><ConversationalEditPage
+                    look={activeLook}
+                    onBack={() => setView('look-detail')}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                /></div> : null;
+            case 'lifestyle-shoot':
+                 return activeLook ? <div className="p-6"><LifestyleShootPage
+                    look={activeLook}
+                    onBack={() => setView('look-detail')}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                /></div> : null;
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans flex flex-col">
+            {renderHeader()}
+            <main className="flex-grow flex flex-col">
+                {renderView()}
+            </main>
+            {isCreateModelModalOpen && (
+                <Modal isOpen={isCreateModelModalOpen} onClose={() => setIsCreateModelModalOpen(false)} title="Create New Model">
+                    <ModelCreationForm
+                        onClose={() => setIsCreateModelModalOpen(false)}
+                        isCreating={isCreatingModel}
+                        onCreateFromScratch={handleCreateModelFromScratch}
+                        onCreateFromPhoto={handleCreateModelFromPhoto}
+                    />
+                </Modal>
+            )}
+            {isImageModalOpen && (
+                <Modal isOpen={isImageModalOpen} onClose={() => setIsImageModalOpen(false)} title="Model Image">
+                    <img src={imageModalUrl} alt="Model" className="max-w-full max-h-[80vh] mx-auto" />
+                </Modal>
+            )}
+        </div>
+    );
 };
 
 export default CreatorStudio;

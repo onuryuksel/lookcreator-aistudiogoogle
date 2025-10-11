@@ -1,3 +1,5 @@
+
+// From ounassService.ts and others
 export interface OunassSKU {
   id: number;
   sku: string;
@@ -20,10 +22,11 @@ export interface OunassSKU {
   brand: string;
 }
 
+// From ModelCreationForm.tsx and others
 export interface Model {
-  id?: number;
-  imageUrl: string;
+  id: number;
   name: string;
+  imageUrl: string;
   gender: 'Male' | 'Female';
   ethnicity: string;
   ageAppearance: string;
@@ -35,32 +38,52 @@ export interface Model {
   facialHair: string;
 }
 
-export interface Look {
-  id?: number;
-  finalImage: string;
-  products: OunassSKU[];
-  baseImage: string;
-  createdAt: number;
-  variations?: string[]; // Optional array of image URLs
-}
-
-export type TryOnStatus = 'pending' | 'generating' | 'completed' | 'failed';
-
+// From TryOnSequence.tsx
 export interface TryOnStep {
   sku: OunassSKU;
   inputImage: string;
-  outputImage: string;
-  prompt: string;
-  status: TryOnStatus;
+  outputImage: string | null;
+  status: 'pending' | 'generating' | 'completed' | 'failed';
 }
 
-// New types for the multi-step Lifestyle Shoot feature
+// From LookDetail.tsx and others
+export interface Look {
+  id: number;
+  model: Model;
+  products: OunassSKU[];
+  finalImage: string; // The main image for the look
+  variations: string[]; // Other generated images
+  createdAt: number; // timestamp
+}
+
+// For lookboards, from LookboardsList.tsx, ViewLookboardPage.tsx
+export interface Comment {
+    id: string;
+    author: 'client' | 'stylist';
+    text: string;
+    createdAt: number;
+}
+
+export interface Lookboard {
+    id: number;
+    publicId: string; // for sharing
+    title: string;
+    note?: string;
+    lookIds: number[];
+    createdAt: number;
+    // Key is lookId, value is 'liked' or 'disliked'
+    feedbacks?: Record<number, 'liked' | 'disliked'>;
+    // Key is lookId, value is an array of comments
+    comments?: Record<number, Comment[]>;
+}
+
+// From LifestyleShootPage.tsx
 export interface LifestyleShootUserInput {
-  location: string;
-  mood: string;
-  time: string;
-  details: string;
-  visualStyle: string;
+    location: string;
+    mood: string;
+    time: string;
+    details: string;
+    visualStyle: string;
 }
 
 export interface ArtDirectorPrompt {
@@ -119,26 +142,3 @@ export interface ArtDirectorPrompt {
         };
     };
 }
-
-// --- START: New Types for Lookboards ---
-export interface Comment {
-  id: string;
-  author: 'stylist' | 'client';
-  text: string;
-  createdAt: number;
-}
-
-export interface Lookboard {
-  id?: number;
-  publicId: string;
-  title: string;
-  note?: string;
-  lookIds: number[];
-  // Key is lookId, value is the vote
-  feedbacks: Record<number, 'liked' | 'disliked'>;
-  // Key is lookId, value is an array of comments
-  comments: Record<number, Comment[]>;
-  createdAt: number;
-  updatedAt: number;
-}
-// --- END: New Types for Lookboards ---
