@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Look } from '../types';
 import { Modal, Button, Spinner } from './common';
-import { changeImageAspectRatio } from '../services/imageEditingService';
+import { changeImageAspectRatio } from '../services/directImageEditingService';
 import { SaveIcon } from './Icons';
+import { ASPECT_RATIOS } from '../constants';
 
 interface AspectRatioModalProps {
     isOpen: boolean;
@@ -10,8 +11,6 @@ interface AspectRatioModalProps {
     look: Look;
     onSaveVariation: (newImage: string) => void;
 }
-
-const ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 
 const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, look, onSaveVariation }) => {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -73,13 +72,13 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
                         {ASPECT_RATIOS.map(ratio => (
                             <Button
-                                key={ratio}
+                                key={ratio.value}
                                 variant="secondary"
-                                onClick={() => handleGenerate(ratio)}
+                                onClick={() => handleGenerate(ratio.value)}
                                 disabled={isGenerating}
-                                className={`justify-center ${selectedRatio === ratio && isGenerating ? 'ring-2 ring-zinc-500' : ''}`}
+                                className={`justify-center ${selectedRatio === ratio.value && isGenerating ? 'ring-2 ring-zinc-500' : ''}`}
                             >
-                                {ratio}
+                                {ratio.value}
                             </Button>
                         ))}
                     </div>

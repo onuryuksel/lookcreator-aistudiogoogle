@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Look } from '../types';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon, PlusIcon, XIcon } from '../components/Icons';
-import { editImageWithPrompt, editImageWithImageAndPrompt } from '../services/imageEditingService';
+import { editImageWithPrompt, editImageWithImageAndPrompt } from '../services/directImageEditingService';
+import ImageViewer from '../components/ImageViewer';
 
 interface ConversationalEditPageProps {
   look: Look;
@@ -173,15 +174,12 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
 
       {/* Right Panel: Image Viewer */}
       <div className="lg:w-2/3 h-full">
-        <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
-          <img src={latestImage} alt="Editable look" className="w-full h-full object-contain" />
-          {isGenerating && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
-              <Spinner />
-              <p className="text-white ml-2 font-semibold">Generating...</p>
-            </div>
-          )}
-        </div>
+        <ImageViewer
+          src={latestImage}
+          alt="Editable look"
+          isLoading={isGenerating}
+          loadingText="Generating..."
+        />
       </div>
     </div>
   );

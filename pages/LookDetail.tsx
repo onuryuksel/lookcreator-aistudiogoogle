@@ -1,11 +1,11 @@
 
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Look } from '../types';
 import ProductCard from '../components/ProductCard';
 import { Button, Card, Dropdown, DropdownItem } from '../components/common';
-import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon } from '../components/Icons';
+import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon } from '../components/Icons';
 import AspectRatioModal from '../components/AspectRatioModal';
+import ImageViewer from '../components/ImageViewer';
 
 interface LookDetailProps {
   look: Look;
@@ -27,9 +27,10 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const [showVariationRightArrow, setShowVariationRightArrow] = useState(true);
   const [isAspectRatioModalOpen, setIsAspectRatioModalOpen] = useState(false);
 
-  // The main image is the source of truth, variations are everything else.
-  const variations = (look.variations || []).filter(v => v !== look.finalImage);
-  const allImages = [look.finalImage, ...variations];
+  // A memoized, unique list of all image URLs for this look.
+  const allImages = useMemo(() => {
+    return [...new Set([look.finalImage, ...(look.variations || [])])].filter(Boolean);
+  }, [look.finalImage, look.variations]);
 
   useEffect(() => {
     // When the look prop changes (e.g., after setting a new main image),
@@ -41,7 +42,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     const updatedLook: Look = {
       ...look,
       finalImage: selectedImage,
-      variations: [...new Set([look.finalImage, ...(look.variations || [])])].filter(v => v !== selectedImage),
+      variations: allImages.filter(v => v !== selectedImage),
     };
     onUpdate(updatedLook);
   };
@@ -60,6 +61,37 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     onUpdate(updatedLook);
     setIsAspectRatioModalOpen(false); // Close modal on save
   };
+
+    const handleDeleteVariation = (imageToDelete: string) => {
+        // Prevent deleting the last image.
+        if (allImages.length <= 1) {
+            alert("You cannot delete the last image of a look.");
+            return;
+        }
+
+        // No confirmation dialog, as requested by the user.
+        const remainingImages = allImages.filter(img => img !== imageToDelete);
+        
+        // The first image in the remaining list becomes the new main image.
+        // This naturally handles promotion if the original main image was deleted.
+        const newFinalImage = remainingImages[0];
+
+        // All other images become the variations.
+        const newVariations = remainingImages.slice(1);
+
+        const updatedLook: Look = {
+            ...look,
+            finalImage: newFinalImage,
+            variations: newVariations,
+        };
+
+        // If the currently viewed image was the one deleted, switch the view to the new main image.
+        if (selectedImage === imageToDelete) {
+            setSelectedImage(newFinalImage);
+        }
+        
+        onUpdate(updatedLook);
+    };
   
   const handleProductScroll = () => {
     if (productsScrollContainerRef.current) {
@@ -163,19 +195,19 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* --- START: Left Column (Image) --- */}
         <div className="lg:col-span-1">
-          <Card className="p-0 overflow-hidden sticky top-24">
-            <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center relative">
-              <img src={selectedImage} alt="Selected look" className="max-h-full max-w-full object-contain" />
-               {selectedImage !== look.finalImage && (
-                    <Button 
-                        onClick={handleSetAsMain}
-                        className="absolute top-4 right-4"
-                    >
-                       <StarIcon/> Set as Main
-                    </Button>
-                )}
+          <div className="sticky top-24">
+            <div className="aspect-[3/4] relative">
+              <ImageViewer src={selectedImage} alt="Selected look" />
+              {selectedImage !== look.finalImage && (
+                <Button 
+                  onClick={handleSetAsMain}
+                  className="absolute top-4 left-4"
+                >
+                  <StarIcon/> Set as Main
+                </Button>
+              )}
             </div>
-          </Card>
+          </div>
         </div>
         {/* --- END: Left Column --- */}
 
@@ -220,10 +252,26 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
               {allImages.map((img, index) => (
                 <div
                   key={index}
-                  onClick={() => setSelectedImage(img)}
-                  className={`w-28 aspect-[3/4] flex-shrink-0 rounded-md overflow-hidden cursor-pointer ring-2 ring-offset-2 dark:ring-offset-zinc-950 ${selectedImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                  className="relative group w-28 aspect-[3/4] flex-shrink-0"
                 >
-                  <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-800" />
+                  <div
+                    onClick={() => setSelectedImage(img)}
+                    className={`w-full h-full rounded-md overflow-hidden cursor-pointer ring-2 ring-offset-2 dark:ring-offset-zinc-950 ${selectedImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                  >
+                    <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-800" />
+                  </div>
+                   {allImages.length > 1 && (
+                      <button
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteVariation(img);
+                          }}
+                          className="absolute top-1 right-1 z-10 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity"
+                          aria-label="Delete variation"
+                      >
+                          <XIcon className="h-4 w-4" />
+                      </button>
+                  )}
                 </div>
               ))}
             </div>

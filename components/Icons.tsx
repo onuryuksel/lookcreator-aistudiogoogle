@@ -75,8 +75,8 @@ export const ChevronRightIcon: React.FC = () => (
     </Icon>
 );
 
-export const XIcon: React.FC = () => (
-    <Icon>
+export const XIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props}>
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
     </Icon>
@@ -116,5 +116,14 @@ export const CropIcon: React.FC = () => (
     <Icon>
         <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15" />
         <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15" />
+    </Icon>
+);
+
+export const ZoomInIcon: React.FC = () => (
+    <Icon>
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <line x1="11" y1="8" x2="11" y2="14"></line>
+        <line x1="8" y1="11" x2="14" y2="11"></line>
     </Icon>
 );

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Look, LifestyleShootUserInput, ArtDirectorPrompt } from '../types';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
-import { generateArtDirectorPrompt, generateLifestyleImage } from '../services/imageEditingService';
+import { generateArtDirectorPrompt, generateLifestyleImage, generateArtDirectorPromptFromImage } from '../services/lifestyleShootService';
+import { ASPECT_RATIOS } from '../constants';
+import ImageViewer from '../components/ImageViewer';
 
 // --- START: Lifestyle Shoot Page Constants ---
 const VISUAL_STYLES = {
@@ -28,18 +30,24 @@ interface LifestyleShootPageProps {
 }
 
 type PageStep = 'input' | 'review' | 'result';
+type CreationMode = 'text' | 'image';
 
 const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, onSave }) => {
   const [step, setStep] = useState<PageStep>('input');
+  const [creationMode, setCreationMode] = useState<CreationMode>('text');
   const [userInput, setUserInput] = useState<LifestyleShootUserInput>({
     location: '',
     mood: '',
     time: '',
     details: '',
-    visualStyle: '', // Changed: Default is now empty, making it optional
+    visualStyle: '',
   });
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+
   const [artDirectorPrompt, setArtDirectorPrompt] = useState<ArtDirectorPrompt | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState('9:16');
   
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -50,11 +58,26 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
     setUserInput(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleReferenceImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setReferenceImage(file);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+          setReferenceImagePreview(reader.result as string);
+      }
+    }
+  };
+
   const handleGenerateBrief = async () => {
     setIsGeneratingBrief(true);
     setError(null);
     try {
-      const brief = await generateArtDirectorPrompt(userInput, look);
+      const brief = creationMode === 'image' && referenceImage
+        ? await generateArtDirectorPromptFromImage(referenceImage, look)
+        : await generateArtDirectorPrompt(userInput, look);
+      
       setArtDirectorPrompt(brief);
       setStep('review');
     } catch (err) {
@@ -70,14 +93,18 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
     setIsGeneratingImage(true);
     setError(null);
     try {
-      const image = await generateLifestyleImage(look.finalImage, artDirectorPrompt);
-      setGeneratedImage(image);
-      setStep('result');
+        const image = await generateLifestyleImage(
+            look.finalImage,
+            artDirectorPrompt,
+            aspectRatio,
+        );
+        setGeneratedImage(image);
+        setStep('result');
     } catch (err) {
-      console.error("Error generating lifestyle image:", err);
-      setError(err instanceof Error ? err.message : 'Failed to generate image.');
+        console.error("Error generating lifestyle image:", err);
+        setError(err instanceof Error ? err.message : 'Failed to generate image.');
     } finally {
-      setIsGeneratingImage(false);
+        setIsGeneratingImage(false);
     }
   };
   
@@ -101,48 +128,80 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
         return (
           <>
             <h2 className="text-xl font-bold mb-2">Step 1: Creative Brief</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Provide some direction for the AI Art Director. Leave fields blank to give the AI more creative freedom.</p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Location (Optional)</label>
-                <input name="location" value={userInput.location} onChange={handleInputChange} placeholder="e.g., A rooftop cafe in Paris at sunset" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Mood (Optional)</label>
-                <input name="mood" value={userInput.mood} onChange={handleInputChange} placeholder="e.g., Romantic, serene, and elegant" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Time of Day (Optional)</label>
-                <input name="time" value={userInput.time} onChange={handleInputChange} placeholder="e.g., Golden hour, midday, night" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Extra Details (Optional)</label>
-                <textarea name="details" value={userInput.details} onChange={handleInputChange} placeholder="e.g., Include a vintage car, a small dog" rows={2} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Visual Style (Optional)</label>
-                <select name="visualStyle" value={userInput.visualStyle} onChange={handleInputChange} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700 dark:bg-zinc-900">
-                  <option value="">Let AI Art Director decide</option>
-                  {Object.entries(VISUAL_STYLES).map(([key, value]) => (
-                    <option key={key} value={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace('-', ' ')}</option>
-                  ))}
-                </select>
-                {userInput.visualStyle && (
-                    <p className="text-xs text-zinc-500 mt-1">{VISUAL_STYLES[userInput.visualStyle as keyof typeof VISUAL_STYLES]}</p>
-                )}
-              </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Choose how to inspire the AI Art Director.</p>
+            
+            <div className="border-b border-zinc-200 dark:border-zinc-700 mb-6">
+                <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                    <button onClick={() => setCreationMode('text')} className={`${creationMode === 'text' ? 'border-zinc-500 text-zinc-600 dark:border-zinc-400 dark:text-zinc-300' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-200'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                        Describe a Scene
+                    </button>
+                    <button onClick={() => setCreationMode('image')} className={`${creationMode === 'image' ? 'border-zinc-500 text-zinc-600 dark:border-zinc-400 dark:text-zinc-300' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-200'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                        Replicate an Image
+                    </button>
+                </nav>
             </div>
+
+            {creationMode === 'text' ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Location (Optional)</label>
+                    <input name="location" value={userInput.location} onChange={handleInputChange} placeholder="e.g., A rooftop cafe in Paris at sunset" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Mood (Optional)</label>
+                    <input name="mood" value={userInput.mood} onChange={handleInputChange} placeholder="e.g., Romantic, serene, and elegant" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Time of Day (Optional)</label>
+                    <input name="time" value={userInput.time} onChange={handleInputChange} placeholder="e.g., Golden hour, midday, night" className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Extra Details (Optional)</label>
+                    <textarea name="details" value={userInput.details} onChange={handleInputChange} placeholder="e.g., Include a vintage car, a small dog" rows={2} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Visual Style (Optional)</label>
+                    <select name="visualStyle" value={userInput.visualStyle} onChange={handleInputChange} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700 dark:bg-zinc-900">
+                      <option value="">Let AI Art Director decide</option>
+                      {Object.entries(VISUAL_STYLES).map(([key, value]) => (
+                        <option key={key} value={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace('-', ' ')}</option>
+                      ))}
+                    </select>
+                    {userInput.visualStyle && (
+                        <p className="text-xs text-zinc-500 mt-1">{VISUAL_STYLES[userInput.visualStyle as keyof typeof VISUAL_STYLES]}</p>
+                    )}
+                  </div>
+                </div>
+            ) : (
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Upload a reference image. The AI will create a detailed brief to replicate its style, location, lighting, and pose with your model and look.</p>
+                  <input type="file" accept="image/*" onChange={handleReferenceImageChange} className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 dark:file:bg-zinc-700 dark:file:text-zinc-200 dark:hover:file:bg-zinc-600"/>
+                  {referenceImagePreview && (
+                    <div className="mt-4">
+                      <img src={referenceImagePreview} alt="Reference preview" className="max-w-full h-auto rounded-md border border-zinc-200 dark:border-zinc-700" />
+                    </div>
+                  )}
+                </div>
+            )}
           </>
         );
       case 'review':
         return (
            <>
-            <h2 className="text-xl font-bold mb-2">Step 2: Art Director's Brief</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">The AI Art Director has created a detailed plan based on your input. Review it, then proceed to generate the final image.</p>
-            <div className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-md text-xs whitespace-pre-wrap overflow-x-auto">
+            <h2 className="text-xl font-bold mb-2">Step 2: Review Brief</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">The AI Art Director has created a detailed plan. Review it and select the final aspect ratio, then proceed to generate the final image.</p>
+            <div className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-md text-xs whitespace-pre-wrap overflow-x-auto max-h-80 mb-4">
                 <code>
                     {JSON.stringify(artDirectorPrompt, null, 2)}
                 </code>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Output Aspect Ratio</label>
+              <select name="aspectRatio" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700 dark:bg-zinc-900">
+                {ASPECT_RATIOS.map(ratio => (
+                  <option key={ratio.value} value={ratio.value}>{ratio.label}</option>
+                ))}
+              </select>
             </div>
           </>
         );
@@ -159,7 +218,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
   return (
     <div>
         <div className="flex justify-between items-center mb-4">
-            <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary">
+            <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating}>
                 <ChevronLeftIcon /> {step === 'input' ? 'Back to Look' : 'Back to Brief'}
             </Button>
             {step === 'result' && (
@@ -181,7 +240,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
                     )}
                     <div className="mt-6 flex justify-end">
                         {step === 'input' && (
-                            <Button onClick={handleGenerateBrief} disabled={isGenerating}>
+                            <Button onClick={handleGenerateBrief} disabled={isGenerating || (creationMode === 'image' && !referenceImage)}>
                                 {isGeneratingBrief ? <Spinner /> : 'Generate Brief'}
                             </Button>
                         )}
@@ -197,16 +256,13 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
             {/* Right Panel: Image Viewer */}
             <div className="lg:w-1/2">
                 <div className="sticky top-24">
-                     <div className="relative w-full aspect-[3/4] bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
-                        <img src={generatedImage || look.finalImage} alt="Lifestyle look" className="w-full h-full object-contain" />
-                        {isGenerating && (
-                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center backdrop-blur-sm p-4 text-center">
-                                <Spinner />
-                                <p className="text-white mt-2 font-semibold">
-                                    {isGeneratingBrief ? "AI Art Director is creating the brief..." : "Generating final lifestyle image..."}
-                                </p>
-                            </div>
-                        )}
+                     <div className="aspect-[3/4]">
+                        <ImageViewer
+                            src={generatedImage || look.finalImage}
+                            alt="Lifestyle look"
+                            isLoading={isGenerating}
+                            loadingText={isGeneratingBrief ? "AI Art Director is creating the brief..." : "Generating final lifestyle image..."}
+                        />
                     </div>
                 </div>
             </div>

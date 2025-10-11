@@ -1,4 +1,6 @@
 import React, { ChangeEvent, ReactNode, useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
+import { XIcon } from './Icons';
 
 // Card
 interface CardProps {
@@ -77,19 +79,56 @@ interface ModalProps {
     children: ReactNode;
 }
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-2xl">
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+        // Add/remove class to body to prevent scrolling when modal is open
+        if (isOpen) {
+            document.body.classList.add('overflow-hidden');
+        } else {
+            document.body.classList.remove('overflow-hidden');
+        }
+        return () => {
+            setIsMounted(false);
+            document.body.classList.remove('overflow-hidden');
+        };
+    }, [isOpen]);
+
+    if (!isOpen || !isMounted) return null;
+
+    const modalContent = (
+        <div
+            className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm"
+            onClick={onClose}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+        >
+            <div
+                className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-4xl"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
-                    <h2 className="text-xl font-bold">{title}</h2>
-                    <button onClick={onClose} className="text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 text-2xl leading-none">&times;</button>
+                    <h2 id="modal-title" className="text-xl font-bold">{title}</h2>
+                    <button
+                        onClick={onClose}
+                        className="p-1 rounded-full text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+                        aria-label="Close modal"
+                    >
+                        <XIcon />
+                    </button>
                 </div>
                 <div className="p-6 max-h-[80vh] overflow-y-auto">
                     {children}
                 </div>
             </div>
         </div>
+    );
+
+    return ReactDOM.createPortal(
+        modalContent,
+        document.body
     );
 };
 
