@@ -23,10 +23,11 @@ const App: React.FC = () => {
   const [lookboards, setLookboards] = useState<Lookboard[]>([]);
   const [currentPage, setCurrentPage] = useState<Page>({ name: 'creator' });
   const [isLoading, setIsLoading] = useState(true);
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      setIsLoading(true);
+      // No need to set isLoading(true) here as it's handled by the initial state
       let dbModels = await db.getAll<Model>('models');
       if (dbModels.length === 0) {
         await db.bulkAdd('models', INITIAL_MODELS);
@@ -47,6 +48,14 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Critical: Check for API key presence on startup.
+    if (!process.env.API_KEY) {
+      console.error("FATAL: API_KEY environment variable is not set.");
+      setIsApiKeyMissing(true);
+      setIsLoading(false); // Stop loading to show the error
+      return;
+    }
+    
     const path = window.location.pathname;
     const boardMatch = path.match(/\/board\/(.+)/);
 
@@ -157,6 +166,18 @@ const App: React.FC = () => {
   };
 
   const renderPage = () => {
+    if (isApiKeyMissing) {
+      return (
+        <div className="flex flex-col justify-center items-center h-screen text-center p-4">
+          <h2 className="text-2xl font-bold text-red-600 dark:text-red-500 mb-2">Configuration Error</h2>
+          <p className="text-lg text-zinc-700 dark:text-zinc-300">The Gemini API key is missing.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md">
+            Please ensure the <code>API_KEY</code> environment variable is correctly set in your Vercel project settings and that the deployment has been rebuilt.
+          </p>
+        </div>
+      );
+    }
+    
     if (isLoading) {
       return <div className="flex justify-center items-center h-screen"><p>Loading Studio...</p></div>;
     }
