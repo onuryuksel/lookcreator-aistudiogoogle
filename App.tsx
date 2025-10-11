@@ -1,329 +1,287 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Look, Model, Lookboard } from './types';
-import * as db from './services/dbService';
-import { INITIAL_MODELS } from './initialData';
 import CreatorStudio from './pages/CreatorStudio';
 import Lookbook from './pages/Lookbook';
 import LookDetail from './pages/LookDetail';
 import ConversationalEditPage from './pages/ConversationalEditPage';
 import LifestyleShootPage from './pages/LifestyleShootPage';
 import ViewLookboardPage from './pages/ViewLookboardPage';
-import { Button } from './components/common';
+import { Model, Look, Lookboard } from './types';
+import * as db from './services/dbService';
+import { Spinner } from './components/common';
 
-type Page = 
-  | { name: 'creator' }
-  | { name: 'lookbook' }
-  | { name: 'look-detail', lookId: number }
-  | { name: 'edit-look', lookId: number }
-  | { name: 'lifestyle-shoot', lookId: number }
-  | { name: 'view-lookboard', publicId: string };
+type AppView = 'creator' | 'lookbook';
+type EditingMode = 'none' | 'conversational' | 'lifestyle';
 
 const App: React.FC = () => {
   const [models, setModels] = useState<Model[]>([]);
   const [looks, setLooks] = useState<Look[]>([]);
   const [lookboards, setLookboards] = useState<Lookboard[]>([]);
-  const [currentPage, setCurrentPage] = useState<Page>({ name: 'creator' });
   const [isLoading, setIsLoading] = useState(true);
-  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
-  const [dbError, setDbError] = useState<string | null>(null);
 
+  // --- START: Navigation State ---
+  const [activeTab, setActiveTab] = useState<AppView>('creator');
+  const [selectedLookId, setSelectedLookId] = useState<number | null>(null);
+  const [editingMode, setEditingMode] = useState<EditingMode>('none');
+  // --- END: Navigation State ---
+
+  // --- START: Public Board Viewing State ---
+  const [viewingBoard, setViewingBoard] = useState<{ board: Lookboard; looks: Look[] } | null>(null);
+  // --- END: Public Board Viewing State ---
+
+  const selectedLook = looks.find(l => l.id === selectedLookId);
+
+  // --- START: Data Loading ---
   const loadData = useCallback(async () => {
-    console.log('[App] Starting data load...');
+    setIsLoading(true);
     try {
-      let dbModels = await db.getAll<Model>('models');
-      
-      if (dbModels.length === 0) {
-        console.log('[App] No models found in DB, adding initial models.');
-        await db.bulkAdd('models', INITIAL_MODELS);
-        dbModels = await db.getAll<Model>('models');
-      }
-      
-      const dbLooks = await db.getAll<Look>('looks');
-      const dbLookboards = await db.getAll<Lookboard>('lookboards');
-      
-      // Data is now sanitized at the database level during migration.
-      // No need for runtime sanitization here anymore.
-      console.log('[App] Data loaded from DB. Setting application state.');
-      
+      await db.initDB();
+      const dbModels = await db.getAllModels();
       setModels(dbModels);
-      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt));
-      setLookboards(dbLookboards.sort((a, b) => b.createdAt - a.createdAt));
-      
-      console.log('[App] Data loading process finished successfully.');
-
+      setLooks(await db.getAllLooks());
+      setLookboards(await db.getAllLookboards());
     } catch (error) {
-      console.error("[App] CRITICAL: Failed to load data from IndexedDB:", error);
-      setDbError(String(error));
+      console.error("Failed to load data from IndexedDB:", error);
     } finally {
       setIsLoading(false);
-      console.log('[App] Loading state set to false.');
     }
   }, []);
 
-  useEffect(() => {
-    // Critical: Check for API key presence on startup.
-    if (!process.env.API_KEY) {
-      console.error("FATAL: API_KEY environment variable is not set.");
-      setIsApiKeyMissing(true);
-      setIsLoading(false); // Stop loading to show the error
-      return;
+  const handlePublicBoardRoute = useCallback(async () => {
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    if (pathParts[0] === 'board' && pathParts[1]) {
+      const publicId = pathParts[1];
+      setIsLoading(true);
+      try {
+        const board = await db.getLookboardByPublicId(publicId);
+        if (board) {
+          const boardLooks = await Promise.all(
+            board.lookIds.map(id => db.getById<Look>('looks', id))
+          );
+          setViewingBoard({ board, looks: boardLooks.filter(Boolean) });
+        } else {
+          // Handle board not found
+          console.error(`Lookboard with public ID ${publicId} not found.`);
+        }
+      } catch (error) {
+        console.error("Failed to load public lookboard:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      loadData();
     }
-    
-    const path = window.location.pathname;
-    const boardMatch = path.match(/\/board\/(.+)/);
-
-    if (boardMatch && boardMatch[1]) {
-        // Set page but don't change browser history, as we're just reading it.
-        setCurrentPage({ name: 'view-lookboard', publicId: boardMatch[1] });
-    }
-    loadData();
   }, [loadData]);
-  
-  const navigate = (page: Page) => {
-    setCurrentPage(page);
-    if (page.name !== 'view-lookboard') {
-        window.history.pushState({}, '', '/');
-    }
-  };
 
 
-  // Model Handlers
+  useEffect(() => {
+    handlePublicBoardRoute();
+  }, [handlePublicBoardRoute]);
+  // --- END: Data Loading ---
+
+
+  // --- START: Model Handlers ---
   const handleModelCreated = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
-    const newModel = await db.add<Model>('models', modelData);
+    const newId = await db.addModel(modelData);
+    const newModel = { ...modelData, id: newId };
     setModels(prev => [...prev, newModel]);
     return newModel;
   };
-
   const handleModelDeleted = async (id: number) => {
-    await db.remove('models', id);
+    await db.deleteModel(id);
     setModels(prev => prev.filter(m => m.id !== id));
   };
+  // --- END: Model Handlers ---
 
-  // Look Handlers
+
+  // --- START: Look Handlers ---
   const handleLookSaved = async (lookData: Omit<Look, 'id'>) => {
-    const newLook = await db.add<Look>('looks', lookData);
-    setLooks(prev => [newLook, ...prev]);
-    navigate({ name: 'lookbook' });
+    const newId = await db.addLook(lookData);
+    const newLook = { ...lookData, id: newId };
+    setLooks(prev => [...prev, newLook]);
+    setActiveTab('lookbook');
   };
-  
   const handleLookUpdated = async (updatedLook: Look) => {
-    await db.put<Look>('looks', updatedLook);
+    await db.updateLook(updatedLook);
     setLooks(prev => prev.map(l => l.id === updatedLook.id ? updatedLook : l));
-    if (currentPage.name === 'edit-look' || currentPage.name === 'lifestyle-shoot') {
-      navigate({ name: 'look-detail', lookId: updatedLook.id! });
-    }
   };
-
   const handleLookDeleted = async (id: number) => {
-    await db.remove('looks', id);
+    await db.deleteLook(id);
     setLooks(prev => prev.filter(l => l.id !== id));
-    navigate({ name: 'lookbook' });
-  }
-
-  // Lookboard Handlers
-  const handleLookboardCreated = async (boardData: Omit<Lookboard, 'id' | 'publicId'>, lookIds: number[]): Promise<Lookboard> => {
-    const newBoardData: Omit<Lookboard, 'id'> = {
-        ...boardData,
-        publicId: crypto.randomUUID(),
-        lookIds,
-        feedbacks: {},
-        comments: {},
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-    };
-    const newBoard = await db.add<Lookboard>('lookboards', newBoardData);
-    setLookboards(prev => [newBoard, ...prev]);
-    return newBoard;
+    setSelectedLookId(null);
   };
+  // --- END: Look Handlers ---
 
-  const handleLookboardUpdated = async (updatedBoard: Lookboard) => {
-    await db.put<Lookboard>('lookboards', { ...updatedBoard, updatedAt: Date.now() });
-    setLookboards(prev => prev.map(b => b.id === updatedBoard.id ? updatedBoard : b));
+
+  // --- START: Lookboard Handlers ---
+  const handleLookboardCreated = async (boardData: Omit<Lookboard, 'id' | 'publicId'>): Promise<Lookboard> => {
+      const publicId = `ounass-ai-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const newBoardData = { ...boardData, publicId };
+      const newId = await db.addLookboard(newBoardData);
+      const newBoard = { ...newBoardData, id: newId };
+      setLookboards(prev => [...prev, newBoard]);
+      return newBoard;
   };
 
   const handleLookboardDeleted = async (id: number) => {
-    await db.remove('lookboards', id);
-    setLookboards(prev => prev.filter(b => b.id !== id));
+      await db.deleteLookboard(id);
+      setLookboards(prev => prev.filter(b => b.id !== id));
   };
+  const handleLookboardUpdated = async (updatedBoard: Lookboard) => {
+    await db.updateLookboard(updatedBoard);
+    // This is for client-side updates on the public board view
+    if (viewingBoard && viewingBoard.board.id === updatedBoard.id) {
+        setViewingBoard(prev => prev ? { ...prev, board: updatedBoard } : null);
+    }
+    setLookboards(prev => prev.map(b => b.id === updatedBoard.id ? updatedBoard : b));
+  };
+  // --- END: Lookboard Handlers ---
 
-  // Lookbook Import/Export
+
+  // --- START: File Import/Export Handlers ---
   const handleLooksExport = () => {
-    const dataStr = JSON.stringify(looks, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
-    const exportFileDefaultName = 'ounass_ai_studio_looks.json';
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    const dataStr = JSON.stringify({ looks }, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.download = `ounass-lookbook-export-${new Date().toISOString()}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleLooksImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
-        try {
-            const importedLooksData = JSON.parse(event.target?.result as string) as Look[];
-            if (!Array.isArray(importedLooksData) || importedLooksData.some(l => !l.finalImage || !l.products)) {
-                throw new Error("Invalid look file format.");
-            }
-            const importedLooks = importedLooksData.map(({ id, ...rest }) => rest);
-            await db.bulkAdd<Look>('looks', importedLooks);
-            loadData();
-        } catch (error) {
-            console.error("Error importing looks:", error);
-            alert("Failed to import looks. Please check the file format.");
+      try {
+        const importedData = JSON.parse(event.target?.result as string);
+        if (Array.isArray(importedData.looks)) {
+          const newLooks: Look[] = [];
+          for (const look of importedData.looks) {
+            // Remove ID to let IndexedDB assign a new one
+            const { id, ...lookData } = look;
+            const newId = await db.addLook(lookData);
+            newLooks.push({ ...lookData, id: newId });
+          }
+          setLooks(prev => [...prev, ...newLooks]);
+          alert(`${newLooks.length} looks imported successfully!`);
+        } else {
+          throw new Error('Invalid file format.');
         }
+      } catch (error) {
+        console.error("Import failed:", error);
+        alert('Import failed. Please check the file format.');
+      }
     };
     reader.readAsText(file);
   };
-  
-  const handleResetAppData = async () => {
-    try {
-      await db.deleteDB();
-      // Reload the page to start from a clean slate
-      window.location.reload();
-    } catch (e) {
-      alert("Automatic reset failed. Please clear your browser's site data for this page manually in the browser settings.");
-      console.error("Failed to delete database:", e);
-    }
-  };
+  // --- END: File Import/Export Handlers ---
 
-
-  const renderPage = () => {
-    if (isApiKeyMissing) {
+  // --- START: Render Logic ---
+  const renderContent = () => {
+    if (isLoading && !viewingBoard) {
       return (
-        <div className="flex flex-col justify-center items-center h-screen text-center p-4">
-          <h2 className="text-2xl font-bold text-red-600 dark:text-red-500 mb-2">Configuration Error</h2>
-          <p className="text-lg text-zinc-700 dark:text-zinc-300">The Gemini API key is missing.</p>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md">
-            Please ensure the <code>API_KEY</code> environment variable is correctly set in your Vercel project settings and that the deployment has been rebuilt.
-          </p>
+        <div className="flex justify-center items-center h-full pt-20">
+          <Spinner />
+          <p className="ml-4 text-zinc-600 dark:text-zinc-400">Loading your studio...</p>
         </div>
       );
     }
-    
-    if (dbError) {
-        return (
-          <div className="flex flex-col justify-center items-center h-screen text-center p-4">
-            <h2 className="text-2xl font-bold text-red-600 dark:text-red-500 mb-2">Application Error</h2>
-            <p className="text-lg text-zinc-700 dark:text-zinc-300">Could not load application data.</p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md">
-              This can happen if the local database becomes corrupted. Resetting the application data will resolve this.
-            </p>
-            <Button onClick={handleResetAppData} variant="danger" className="mt-6">
-              Reset Application Data
-            </Button>
-            <p className="text-xs text-zinc-500 mt-2">This will delete all your saved looks and models.</p>
-            <details className="mt-4 max-w-lg text-left">
-              <summary className="text-xs text-zinc-500 cursor-pointer">Error Details</summary>
-              <pre className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-800 p-2 rounded overflow-auto">{dbError}</pre>
-            </details>
-          </div>
-        );
-    }
-    
-    if (isLoading) {
-      return <div className="flex justify-center items-center h-screen"><p>Loading Studio...</p></div>;
+
+    if (viewingBoard) {
+      return (
+        <ViewLookboardPage
+          lookboard={viewingBoard.board}
+          looks={viewingBoard.looks}
+          onUpdate={handleLookboardUpdated}
+        />
+      );
     }
 
-    switch (currentPage.name) {
+    if (selectedLook) {
+      if (editingMode === 'conversational') {
+        return <ConversationalEditPage
+          look={selectedLook}
+          onBack={() => setEditingMode('none')}
+          onSave={(updatedLook) => {
+            handleLookUpdated(updatedLook);
+            setEditingMode('none');
+          }}
+        />;
+      }
+      if (editingMode === 'lifestyle') {
+        return <LifestyleShootPage
+          look={selectedLook}
+          onBack={() => setEditingMode('none')}
+          onSave={(updatedLook) => {
+            handleLookUpdated(updatedLook);
+            setEditingMode('none');
+          }}
+        />;
+      }
+      return <LookDetail
+        look={selectedLook}
+        onBack={() => setSelectedLookId(null)}
+        onDelete={handleLookDeleted}
+        onUpdate={handleLookUpdated}
+        onEdit={() => setEditingMode('conversational')}
+        onLifestyleShoot={() => setEditingMode('lifestyle')}
+      />;
+    }
+
+    switch (activeTab) {
       case 'creator':
-        return <CreatorStudio 
-          models={models} 
-          onLookSaved={handleLookSaved} 
+        return <CreatorStudio
+          models={models}
+          onLookSaved={handleLookSaved}
           onModelCreated={handleModelCreated}
           onModelDeleted={handleModelDeleted}
         />;
       case 'lookbook':
-        return <Lookbook 
+        return <Lookbook
           looks={looks}
           lookboards={lookboards}
           onLooksExport={handleLooksExport}
           onLooksImport={handleLooksImport}
-          onSelectLook={(lookId) => navigate({ name: 'look-detail', lookId })}
+          onSelectLook={setSelectedLookId}
           onLookboardCreated={handleLookboardCreated}
           onLookboardDeleted={handleLookboardDeleted}
         />;
-      case 'look-detail': {
-        const look = looks.find(l => l.id === currentPage.lookId);
-        return look ? <LookDetail 
-          look={look}
-          onBack={() => navigate({ name: 'lookbook' })}
-          onDelete={handleLookDeleted}
-          onUpdate={handleLookUpdated}
-          onEdit={() => navigate({ name: 'edit-look', lookId: currentPage.lookId })}
-          onLifestyleShoot={() => navigate({ name: 'lifestyle-shoot', lookId: currentPage.lookId })}
-        /> : <div>Look not found.</div>;
-      }
-      case 'edit-look': {
-        const look = looks.find(l => l.id === currentPage.lookId);
-        return look ? <ConversationalEditPage 
-          look={look}
-          onBack={() => navigate({ name: 'look-detail', lookId: currentPage.lookId })}
-          onSave={handleLookUpdated}
-        /> : <div>Look not found.</div>;
-      }
-      case 'lifestyle-shoot': {
-        const look = looks.find(l => l.id === currentPage.lookId);
-        return look ? <LifestyleShootPage 
-          look={look}
-          onBack={() => navigate({ name: 'look-detail', lookId: currentPage.lookId })}
-          onSave={handleLookUpdated}
-        /> : <div>Look not found.</div>;
-      }
-      case 'view-lookboard': {
-        const lookboard = lookboards.find(lb => lb.publicId === currentPage.publicId);
-        if (!lookboard) return <div className="flex justify-center items-center h-screen"><p>Lookboard not found.</p></div>;
-        
-        const boardLooks = looks.filter(l => l.id !== undefined && lookboard.lookIds.includes(l.id));
-        
-        return <ViewLookboardPage 
-          lookboard={lookboard}
-          looks={boardLooks}
-          onUpdate={handleLookboardUpdated}
-        />;
-      }
       default:
-        return <div>Page not found.</div>;
+        return null;
     }
   };
-  
-  const shouldShowNav = currentPage.name !== 'view-lookboard';
 
-  const NavButton: React.FC<{pageName: Page['name'], children: React.ReactNode}> = ({ pageName, children }) => {
-    const isActive = currentPage.name === pageName;
-    return (
-        <button
-            onClick={() => navigate({ name: pageName } as Page)}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                isActive
-                ? 'bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900'
-                : 'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800'
-            }`}
-        >
-            {children}
-        </button>
-    );
+  if (viewingBoard) {
+    return renderContent();
   }
 
   return (
-    <div className="bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen font-sans">
-      {shouldShowNav && (
-        <header className="bg-white dark:bg-zinc-900 shadow-sm sticky top-0 z-40">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-3">
-              <h1 className="text-xl font-bold tracking-tight">Ounass AI Studio</h1>
-              <nav className="flex items-center gap-2">
-                  <NavButton pageName="creator">Create</NavButton>
-                  <NavButton pageName="lookbook">My Lookbook</NavButton>
-              </nav>
+    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <header className="bg-white dark:bg-zinc-900 shadow-sm sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold tracking-tight">Ounass AI Studio</h1>
             </div>
+            <nav className="flex space-x-2 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
+              <button
+                onClick={() => { setActiveTab('creator'); setSelectedLookId(null); }}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${activeTab === 'creator' && !selectedLookId ? 'bg-white dark:bg-zinc-900 shadow-sm' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`}
+              >
+                Create
+              </button>
+              <button
+                onClick={() => { setActiveTab('lookbook'); setSelectedLookId(null); }}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${activeTab === 'lookbook' && !selectedLookId ? 'bg-white dark:bg-zinc-900 shadow-sm' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`}
+              >
+                Lookbook
+              </button>
+            </nav>
           </div>
-        </header>
-      )}
-      <main className={shouldShowNav ? "container mx-auto p-4 sm:p-6 lg:p-8" : ""}>
-        {renderPage()}
+        </div>
+      </header>
+      <main className="max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
+        {renderContent()}
       </main>
     </div>
   );
