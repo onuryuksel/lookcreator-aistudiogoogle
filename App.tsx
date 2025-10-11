@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import CreatorStudio from './pages/CreatorStudio';
 import ViewLookboardPage from './pages/ViewLookboardPage';
 import { Lookboard, Look } from './types';
 import * as db from './services/dbService';
 import { Spinner } from './components/common';
+import { ToastProvider } from './contexts/ToastContext';
 
 const App: React.FC = () => {
     const [page, setPage] = useState<string>('/');
@@ -53,25 +53,33 @@ const App: React.FC = () => {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500">
-                <Spinner />
-                <span className="ml-2">Loading...</span>
-            </div>
-        );
-    }
+    const renderAppContent = () => {
+        if (loading) {
+            return (
+                <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500">
+                    <Spinner />
+                    <span className="ml-2">Loading...</span>
+                </div>
+            );
+        }
 
-    switch (page) {
-        case 'creator':
-            return <CreatorStudio />;
-        case 'board':
-            return board ? <ViewLookboardPage lookboard={board} looks={looks} onUpdate={handleUpdateBoard} /> : <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
-        case 'notfound':
-             return <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
-        default:
-            return <CreatorStudio />;
-    }
+        switch (page) {
+            case 'creator':
+                return <CreatorStudio />;
+            case 'board':
+                return board ? <ViewLookboardPage lookboard={board} looks={looks} onUpdate={handleUpdateBoard} /> : <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
+            case 'notfound':
+                 return <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
+            default:
+                return <CreatorStudio />;
+        }
+    };
+
+    return (
+        <ToastProvider>
+           {renderAppContent()}
+        </ToastProvider>
+    );
 };
 
 export default App;

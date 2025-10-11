@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Model, OunassSKU, TryOnStep, Look, Lookboard } from '../types';
 import * as db from '../services/dbService';
@@ -18,6 +17,7 @@ import { Modal, Button, Spinner } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
 import { SaveIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
+import { useToast } from '../contexts/ToastContext';
 
 type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot';
 
@@ -46,6 +46,9 @@ const CreatorStudio: React.FC = () => {
     const [isCreatingModel, setIsCreatingModel] = useState(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const [imageModalUrl, setImageModalUrl] = useState('');
+
+    // Hooks
+    const { showToast } = useToast();
 
     // --- Data Loading ---
     const loadData = useCallback(async () => {
@@ -262,7 +265,7 @@ const CreatorStudio: React.FC = () => {
         // Reset for next creation
         setTryOnSteps([]);
         setFinalLookImage(null);
-        alert("Look saved to 'My Looks'!");
+        showToast("Look saved to 'Lookbook'!", 'success');
     };
 
 
@@ -306,17 +309,17 @@ const CreatorStudio: React.FC = () => {
     // --- UI Rendering ---
     const renderHeader = () => (
         <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
-            <h1 className="text-2xl font-bold">Ounass AI Studio</h1>
+            <h1 className="text-2xl font-bold">Ounass Look Creator</h1>
             <nav className="flex gap-4">
-                <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Creator Studio</Button>
-                <Button variant={view === 'lookbook' ? 'primary' : 'secondary'} onClick={handleViewLookbook}>My Looks ({looks.length})</Button>
+                <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
+                <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
             </nav>
         </header>
     );
 
     const renderView = () => {
         if (isLoading) {
-            return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Loading Studio...</span></div>;
+            return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Loading your studio...</span></div>;
         }
 
         switch (view) {

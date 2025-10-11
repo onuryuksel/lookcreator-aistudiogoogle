@@ -85,23 +85,50 @@ export const performVirtualTryOn = async (
   previousProducts: OunassSKU[]
 ): Promise<string> => {
     
-    const category = getProductCategory(product);
-    const wearingItems = previousProducts.map(p => `- ${p.name} (${getProductCategory(p)})`);
+    let category = getProductCategory(product);
+
+    // Dynamic Category Adjustment: If a shirt-like item is added on top of an existing top,
+    // treat it as Outerwear to enable layering instead of replacement.
+    const hasExistingTopLayer = previousProducts.some(p => {
+        const prevCategory = getProductCategory(p);
+        return ['Base Top', 'Full-body Outfit', 'Outerwear'].includes(prevCategory);
+    });
+
+    if (category === 'Base Top' && hasExistingTopLayer) {
+        const productName = product.name.toLowerCase();
+        const productClass = (product.class || '').toLowerCase();
+        // Keywords that suggest an item can be worn as an open layer. Exclude "t-shirt".
+        if (
+            (productName.includes('shirt') && !productName.includes('t-shirt')) ||
+            (productClass.includes('shirts') && !productClass.includes('t shirts')) ||
+             productName.includes('cardigan') || 
+             productClass.includes('cardigan')
+        ) {
+            category = 'Outerwear';
+        }
+    }
+    
     const productItemDescription = `${product.class} named '${product.name}'`;
     
-    let sizeAndFitInfo = '';
-    if (category === 'Bags' && product.sizeAndFit && product.sizeAndFit.length > 0) {
-        sizeAndFitInfo = `The bag's dimensions are approximately: ${product.sizeAndFit.join(', ')}. Use these dimensions to ensure the bag is scaled correctly relative to the model.`;
-    }
-
     let compositingInstruction: string;
     let preservationInstruction = `The model's appearance (face, hair, skin, pose) and the background MUST NOT be altered.`;
 
     switch(category) {
-        case 'Bags':
-            compositingInstruction = `Composite the isolated bag (${productItemDescription}) onto the model. The model should hold it or wear it (e.g., on the shoulder, cross-body) in a natural, stylish way appropriate for the bag's type (e.g., tote, clutch, backpack). ${sizeAndFitInfo} Place it with a realistic sense of scale.`;
+        case 'Bags': {
+            const baseInstruction = `Composite the isolated bag (${productItemDescription}) onto the model. The model should hold it or wear it (e.g., on the shoulder, cross-body) in a natural, stylish way appropriate for the bag's type (e.g., tote, clutch, backpack).`;
+            
+            let finalInstruction = baseInstruction;
+    
+            if (product.sizeAndFit && product.sizeAndFit.length > 0) {
+                const sizeInfo = `The bag's dimensions are approximately: ${product.sizeAndFit.join(', ')}. Use these dimensions to ensure the bag is scaled correctly relative to the model.`;
+                finalInstruction += ` ${sizeInfo}`;
+            }
+            
+            finalInstruction += ` Place it with a realistic sense of scale.`;
+            compositingInstruction = finalInstruction;
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
+        }
         case 'Headwear':
             compositingInstruction = `Composite the isolated headwear (${productItemDescription}, e.g., hat, sunglasses) onto the model's head or face. It must fit perfectly and be angled naturally.`;
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
@@ -131,51 +158,60 @@ export const performVirtualTryOn = async (
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         case 'Footwear':
-            compositingInstruction = `Composite the isolated footwear (${productItemDescription}) onto the model's feet.`;
+            compositingInstruction = `Composite the isolated footwear (${productItemDescription}) onto the model's feet, replacing their bare feet.`;
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         case 'Bottoms':
-            compositingInstruction = `Composite the isolated bottoms (${productItemDescription}) onto the model, covering them from the waist down. This should replace the lower part of the bodysuit.`;
+            const initialBottoms = model.gender === 'Male' ? 'shorts' : 'the bottom part of their bodysuit';
+            compositingInstruction = `Composite the isolated bottoms (${productItemDescription}) onto the model, completely replacing their existing lower-body garment (initially, this is their ${initialBottoms}).`;
             preservationInstruction += ` The model's existing top garment MUST remain perfectly visible and unaltered.`
             break;
         case 'Base Top':
-            compositingInstruction = `Composite the isolated top (${productItemDescription}) onto the model's torso, replacing the upper part of their bodysuit.`;
-            preservationInstruction += ` The lower part of the bodysuit must remain visible and unaltered where the new top does not cover it.`
+            const initialTop = model.gender === 'Male' ? 't-shirt' : 'bodysuit';
+            compositingInstruction = `Composite the isolated top (${productItemDescription}) onto the model's torso, completely replacing their existing top garment (initially, this is their ${initialTop}).`;
+            preservationInstruction += ` Any existing lower-body garment (e.g., jeans, shorts) must remain perfectly visible and unaltered.`
             break;
         case 'Outerwear':
-            compositingInstruction = `Composite the isolated outerwear (${productItemDescription}) onto the model, layering it realistically OVER their existing clothes.`;
-            preservationInstruction += ` All clothes underneath the new outerwear must be preserved and visible where appropriate (e.g., at the neckline).`
+            compositingInstruction = `Add the isolated outerwear (${productItemDescription}) onto the model, layered ON TOP of their existing clothes. If the item is a shirt, jacket, or cardigan that can be worn open, ensure it is styled that way so the clothing underneath is clearly visible.`;
+            preservationInstruction += ` All clothes underneath the new outerwear must be preserved and visible where appropriate (e.g., at the neckline, hem).`
             break;
         case 'Full-body Outfit':
-            compositingInstruction = `Composite the isolated full-body outfit (${productItemDescription}) onto the model, replacing their bodysuit entirely.`;
+            const initialFullOutfit = model.gender === 'Male' ? 't-shirt and shorts' : 'bodysuit';
+            compositingInstruction = `Composite the isolated full-body outfit (${productItemDescription}) onto the model, completely replacing ALL of their current clothing (initially, this is their ${initialFullOutfit}).`;
             break;
         default: 
              compositingInstruction = `Composite the isolated garment (${productItemDescription}) onto the model over their existing clothes.`;
     }
+
+    const wearingItemsList = previousProducts.map(p => `- ${p.name} (${getProductCategory(p)})`);
+    const wearingItemsText = wearingItemsList.length > 0 
+        ? `${wearingItemsList.join('\n      ')}`
+        : 'None';
 
     const VIRTUAL_TRY_ON_PROMPT = `You are a professional AI photo editor creating a composite image for a luxury fashion catalog. Your task is to realistically merge a garment from a product photo onto a model photo.
 
 **Objective:** Create a seamless, photorealistic composite.
 
 **Instructions:**
-1.  **Isolate Garment:** From the provided product image, you must isolate ONLY the following garment:
+1.  **Isolate Garment:** From the **Product Image**, you must isolate ONLY the following garment:
     - **Product:** ${product.name}
     - **Type:** ${product.class} / ${product.subClass}
     - **IMPORTANT:** Ignore any other items styled in the product photo.
 
-2.  **Composite onto Model:** ${compositingInstruction} The composite must be flawless.
+2.  **Composite onto Model:** Composite the isolated garment onto the model from the **Model Image**. The composite must be flawless.
+    - **Specific Task:** ${compositingInstruction}
     - Ensure the garment drapes and fits the model's body and pose naturally.
     - Match lighting, shadows, and textures perfectly between the garment and the model.
 
 3.  **Preserve Integrity:**
     - ${preservationInstruction}
-    - The garment's design, color, and details must be an identical match to the product photo.
-    - List of items the model is ALREADY wearing:
-      ${wearingItems.length > 0 ? wearingItems.join('\n') : 'None'}
+    - **CRITICAL RULE:** The garment's design, color, and details must be an **identical match** to the product photo.
+    - **List of items the model is ALREADY wearing (these must be visible if not covered by the new item):**
+      ${wearingItemsText}
 
 The final output must be a single, full-body image that is indistinguishable from a real photograph.`;
   
-  console.log('[Virtual Try-On] Using refined image generation prompt:', VIRTUAL_TRY_ON_PROMPT);
+  console.log('[Virtual Try-On] Using revised image generation prompt:', VIRTUAL_TRY_ON_PROMPT);
 
   const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
   
