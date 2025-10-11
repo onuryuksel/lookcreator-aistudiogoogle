@@ -27,7 +27,6 @@ const App: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
-      // No need to set isLoading(true) here as it's handled by the initial state
       let dbModels = await db.getAll<Model>('models');
       if (dbModels.length === 0) {
         await db.bulkAdd('models', INITIAL_MODELS);
@@ -36,12 +35,29 @@ const App: React.FC = () => {
       const dbLooks = await db.getAll<Look>('looks');
       const dbLookboards = await db.getAll<Lookboard>('lookboards');
       
+      // Sanitize data to ensure compatibility with the current app version
+      // This prevents crashes if data from an older version is loaded from IndexedDB
+      const sanitizedLooks = dbLooks.map(look => ({
+          ...look,
+          createdAt: look.createdAt || Date.now(),
+          variations: look.variations || [],
+      }));
+
+      const sanitizedLookboards = dbLookboards.map(board => ({
+          ...board,
+          createdAt: board.createdAt || Date.now(),
+          updatedAt: board.updatedAt || Date.now(),
+          lookIds: board.lookIds || [],
+          feedbacks: board.feedbacks || {},
+          comments: board.comments || {},
+      }));
+      
       setModels(dbModels);
-      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt));
-      setLookboards(dbLookboards.sort((a, b) => b.createdAt - a.createdAt));
+      setLooks(sanitizedLooks.sort((a, b) => b.createdAt - a.createdAt));
+      setLookboards(sanitizedLookboards.sort((a, b) => b.createdAt - a.createdAt));
 
     } catch (error) {
-      console.error("Failed to load data from IndexedDB:", error);
+      console.error("Failed to load or sanitize data from IndexedDB:", error);
     } finally {
       setIsLoading(false);
     }

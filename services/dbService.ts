@@ -23,6 +23,12 @@ const initDB = (): Promise<IDBDatabase> => {
       reject('Error opening IndexedDB.');
     };
 
+    request.onblocked = () => {
+        console.warn('IndexedDB upgrade blocked. Please close other open tabs with this app.');
+        // This rejection helps the app avoid getting stuck in a loading state.
+        reject('Database upgrade is blocked. Please close other tabs running this application and reload.');
+    };
+
     request.onsuccess = () => {
       db = request.result;
       resolve(db);
