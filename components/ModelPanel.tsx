@@ -21,7 +21,7 @@ const ModelPanel: React.FC<ModelPanelProps> = ({
     onOpenImageModal,
 }) => {
     return (
-        <Card className="flex-1 flex flex-col">
+        <Card className="flex-1 flex flex-col h-full">
             <h2 className="text-xl font-bold mb-4">Models</h2>
             <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-2">
                 {models.map(model => (
@@ -52,7 +52,7 @@ const ModelPanel: React.FC<ModelPanelProps> = ({
                     </div>
                 ))}
             </div>
-            <div className="mt-4 space-y-2">
+            <div className="mt-4">
                 <button onClick={onOpenCreateModelModal} className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
                     <PlusIcon/>
                     <span>Create New Model</span>

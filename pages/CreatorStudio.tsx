@@ -13,9 +13,9 @@ import LookDetail from './LookDetail';
 import ConversationalEditPage from './ConversationalEditPage';
 import LifestyleShootPage from './LifestyleShootPage';
 
-import { Modal, Button, Spinner } from '../components/common';
+import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
-import { SaveIcon } from '../components/Icons';
+import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import { useToast } from '../contexts/ToastContext';
 
@@ -306,14 +306,106 @@ const CreatorStudio: React.FC = () => {
 
     const selectedModel = models.find(m => m.id === selectedModelId);
 
+    // --- Data Management ---
+    const handleExportData = async () => {
+        try {
+            const dataToExport = {
+                models: await db.getModels(),
+                looks: await db.getLooks(),
+                lookboards: await db.getLookboards(),
+            };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ounass-studio-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Data exported successfully!', 'success');
+        } catch (error) {
+            console.error('Failed to export data:', error);
+            showToast('Failed to export data.', 'error');
+        }
+    };
+
+    const handleImportData = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target?.result as string);
+                    if (data.models && data.looks && data.lookboards) {
+                        await db.saveModels(data.models);
+                        await db.saveLooks(data.looks);
+                        await db.saveLookboards(data.lookboards);
+                        await loadData(); // Reload all data into the app state
+                        showToast('Data imported successfully!', 'success');
+                    } else {
+                        throw new Error('Invalid backup file format.');
+                    }
+                } catch (error) {
+                    console.error('Failed to import data:', error);
+                    showToast(error instanceof Error ? error.message : 'Failed to import data.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
+    const handleClearData = async () => {
+        if (window.confirm('Are you sure you want to delete ALL your data (models, looks, and boards)? This action cannot be undone.')) {
+            try {
+                await db.clearModels();
+                await db.clearLooks();
+                await db.clearLookboards();
+                await loadData(); // Reload to show empty state
+                showToast('All data has been cleared.', 'success');
+            } catch (error) {
+                console.error('Failed to clear data:', error);
+                showToast('Failed to clear data.', 'error');
+            }
+        }
+    };
+
+
     // --- UI Rendering ---
     const renderHeader = () => (
         <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
             <h1 className="text-2xl font-bold">Ounass Look Creator</h1>
-            <nav className="flex gap-4">
-                <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
-                <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
-            </nav>
+            <div className="flex items-center gap-4">
+                <nav className="flex gap-4">
+                    <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
+                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
+                </nav>
+                <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700"></div>
+                <Dropdown
+                    trigger={
+                        <Button variant="secondary" className="p-2" aria-label="Studio Settings">
+                            <SettingsIcon />
+                        </Button>
+                    }
+                >
+                    <DropdownItem onClick={handleExportData}>
+                        <DownloadIcon /> Export All Data
+                    </DropdownItem>
+                    <DropdownItem onClick={handleImportData}>
+                        <UploadIcon /> Import Data
+                    </DropdownItem>
+                    <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
+                        <TrashIcon /> Clear All Data
+                    </DropdownItem>
+                </Dropdown>
+            </div>
         </header>
     );
 
