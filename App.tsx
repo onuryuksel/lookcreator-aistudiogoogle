@@ -31,50 +31,28 @@ const App: React.FC = () => {
     console.log('[App] Starting data load...');
     try {
       let dbModels = await db.getAll<Model>('models');
-      console.log('[App] Raw models from DB:', JSON.parse(JSON.stringify(dbModels)));
       
       if (dbModels.length === 0) {
         console.log('[App] No models found in DB, adding initial models.');
         await db.bulkAdd('models', INITIAL_MODELS);
         dbModels = await db.getAll<Model>('models');
       }
+      
       const dbLooks = await db.getAll<Look>('looks');
-      console.log('[App] Raw looks from DB:', JSON.parse(JSON.stringify(dbLooks)));
-
       const dbLookboards = await db.getAll<Lookboard>('lookboards');
-      console.log('[App] Raw lookboards from DB:', JSON.parse(JSON.stringify(dbLookboards)));
       
-      console.log('[App] Starting data sanitization...');
-      const sanitizedLooks = dbLooks.map(look => {
-          console.log(`[App] Sanitizing look ID: ${look.id}`, look);
-          return {
-              ...look,
-              createdAt: look.createdAt || Date.now(),
-              variations: look.variations || [],
-          };
-      });
-
-      const sanitizedLookboards = dbLookboards.map(board => {
-          console.log(`[App] Sanitizing lookboard ID: ${board.id}`, board);
-          return {
-              ...board,
-              createdAt: board.createdAt || Date.now(),
-              updatedAt: board.updatedAt || Date.now(),
-              lookIds: board.lookIds || [],
-              feedbacks: board.feedbacks || {},
-              comments: board.comments || {},
-          };
-      });
-      console.log('[App] Data sanitization complete.');
+      // Data is now sanitized at the database level during migration.
+      // No need for runtime sanitization here anymore.
+      console.log('[App] Data loaded from DB. Setting application state.');
       
-      console.log('[App] Setting application state with sanitized data.');
       setModels(dbModels);
-      setLooks(sanitizedLooks.sort((a, b) => b.createdAt - a.createdAt));
-      setLookboards(sanitizedLookboards.sort((a, b) => b.createdAt - a.createdAt));
+      setLooks(dbLooks.sort((a, b) => b.createdAt - a.createdAt));
+      setLookboards(dbLookboards.sort((a, b) => b.createdAt - a.createdAt));
+      
       console.log('[App] Data loading process finished successfully.');
 
     } catch (error) {
-      console.error("[App] CRITICAL: Failed to load or sanitize data from IndexedDB:", error);
+      console.error("[App] CRITICAL: Failed to load data from IndexedDB:", error);
       setDbError(String(error));
     } finally {
       setIsLoading(false);
@@ -298,10 +276,7 @@ const App: React.FC = () => {
         const lookboard = lookboards.find(lb => lb.publicId === currentPage.publicId);
         if (!lookboard) return <div className="flex justify-center items-center h-screen"><p>Lookboard not found.</p></div>;
         
-        // BUGFIX: Defensively check for `lookboard.lookIds` to prevent crashes
-        // if the data is from an older version of the app. Default to an empty array.
-        const lookIds = lookboard.lookIds || [];
-        const boardLooks = looks.filter(l => l.id !== undefined && lookIds.includes(l.id));
+        const boardLooks = looks.filter(l => l.id !== undefined && lookboard.lookIds.includes(l.id));
         
         return <ViewLookboardPage 
           lookboard={lookboard}

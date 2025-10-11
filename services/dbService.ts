@@ -1,11 +1,11 @@
 import { Look, Model, Lookboard } from '../types';
 
 const DB_NAME = 'OunassAIStudioDB';
-const DB_VERSION = 2; // Incremented version to trigger upgrade
+const DB_VERSION = 3; // Incremented version to trigger the migration
 const STORES = {
   MODELS: 'models',
   LOOKS: 'looks',
-  LOOKBOARDS: 'lookboards', // Added lookboards store
+  LOOKBOARDS: 'lookboards',
 };
 
 let db: IDBDatabase | null = null;
@@ -51,25 +51,77 @@ const initDB = (): Promise<IDBDatabase> => {
     };
 
     request.onupgradeneeded = (event) => {
-      console.log('[DB] Database upgrade needed. Old version:', event.oldVersion, 'New version:', DB_VERSION);
+      console.log(`[DB] Database upgrade needed. Old version: ${event.oldVersion}, New version: ${DB_VERSION}`);
       const dbInstance = (event.target as IDBOpenDBRequest).result;
+      const transaction = (event.target as IDBOpenDBRequest).transaction;
+
+      if (event.oldVersion < 1) {
+        // Version 1: Initial setup
+        if (!dbInstance.objectStoreNames.contains(STORES.MODELS)) {
+          console.log('[DB Migration v1] Creating "models" object store.');
+          dbInstance.createObjectStore(STORES.MODELS, { keyPath: 'id', autoIncrement: true });
+        }
+        if (!dbInstance.objectStoreNames.contains(STORES.LOOKS)) {
+          console.log('[DB Migration v1] Creating "looks" object store.');
+          dbInstance.createObjectStore(STORES.LOOKS, { keyPath: 'id', autoIncrement: true });
+        }
+      }
+
+      if (event.oldVersion < 2) {
+        // Version 2: Added lookboards and createdAt index to looks
+        if (!dbInstance.objectStoreNames.contains(STORES.LOOKBOARDS)) {
+          console.log('[DB Migration v2] Creating "lookboards" object store.');
+          const lookboardsStore = dbInstance.createObjectStore(STORES.LOOKBOARDS, { keyPath: 'id', autoIncrement: true });
+          lookboardsStore.createIndex('publicId', 'publicId', { unique: true });
+        }
+        if (transaction) {
+            const looksStore = transaction.objectStore(STORES.LOOKS);
+            if (!looksStore.indexNames.contains('createdAt')) {
+                console.log('[DB Migration v2] Creating "createdAt" index on "looks" store.');
+                looksStore.createIndex('createdAt', 'createdAt', { unique: false });
+            }
+        }
+      }
       
-      if (!dbInstance.objectStoreNames.contains(STORES.MODELS)) {
-        console.log('[DB] Creating "models" object store.');
-        dbInstance.createObjectStore(STORES.MODELS, { keyPath: 'id', autoIncrement: true });
+      if (event.oldVersion < 3) {
+        // Version 3: Data migration for existing looks to add `createdAt` and `variations`
+        console.log('[DB Migration v3] Starting migration for looks data to add `createdAt` and `variations`.');
+        if (transaction) {
+            const looksStore = transaction.objectStore(STORES.LOOKS);
+            looksStore.openCursor().onsuccess = (e) => {
+                const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor) {
+                    console.log('[DB Migration v3] Processing cursor for a look...');
+                    const look = cursor.value as Look;
+                    console.log('[DB Migration v3] Found look object:', JSON.parse(JSON.stringify(look)));
+                    let needsUpdate = false;
+                    
+                    if (typeof look.createdAt !== 'number') {
+                        console.log(`[DB Migration v3] Look ID: ${look.id} is missing 'createdAt'. Adding it now.`);
+                        look.createdAt = Date.now(); // Add a creation timestamp
+                        needsUpdate = true;
+                    }
+                    if (!Array.isArray(look.variations)) {
+                        console.log(`[DB Migration v3] Look ID: ${look.id} is missing 'variations'. Adding it now.`);
+                        look.variations = []; // Add variations array
+                        needsUpdate = true;
+                    }
+
+                    if (needsUpdate) {
+                        console.log(`[DB Migration v3] Updating look ID: ${look.id} in the database.`);
+                        cursor.update(look);
+                    } else {
+                        console.log(`[DB Migration v3] Look ID: ${look.id} is already up-to-date. No changes needed.`);
+                    }
+                    cursor.continue();
+                } else {
+                   console.log('[DB Migration v3] Looks data migration complete. All looks processed.');
+                }
+            };
+        } else {
+            console.error('[DB Migration v3] Transaction is not available for migration.');
+        }
       }
-      if (!dbInstance.objectStoreNames.contains(STORES.LOOKS)) {
-        console.log('[DB] Creating "looks" object store.');
-        const looksStore = dbInstance.createObjectStore(STORES.LOOKS, { keyPath: 'id', autoIncrement: true });
-        looksStore.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-      // Added creation logic for the new lookboards store
-      if (!dbInstance.objectStoreNames.contains(STORES.LOOKBOARDS)) {
-        console.log('[DB] Creating "lookboards" object store.');
-        const lookboardsStore = dbInstance.createObjectStore(STORES.LOOKBOARDS, { keyPath: 'id', autoIncrement: true });
-        lookboardsStore.createIndex('publicId', 'publicId', { unique: true });
-      }
-      console.log('[DB] Database upgrade complete.');
     };
   });
 };
