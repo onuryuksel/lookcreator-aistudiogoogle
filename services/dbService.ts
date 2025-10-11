@@ -15,40 +15,46 @@ const initDB = (): Promise<IDBDatabase> => {
     if (db) {
       return resolve(db);
     }
-
+    console.log('[DB] Initializing database...');
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => {
-      console.error('IndexedDB error:', request.error);
+      console.error('[DB] Database initialization error:', request.error);
       reject('Error opening IndexedDB.');
     };
 
     request.onblocked = () => {
-        console.warn('IndexedDB upgrade blocked. Please close other open tabs with this app.');
+        console.warn('[DB] Database upgrade blocked. Please close other open tabs with this app.');
         // This rejection helps the app avoid getting stuck in a loading state.
         reject('Database upgrade is blocked. Please close other tabs running this application and reload.');
     };
 
     request.onsuccess = () => {
+      console.log('[DB] Database opened successfully.');
       db = request.result;
       resolve(db);
     };
 
     request.onupgradeneeded = (event) => {
+      console.log('[DB] Database upgrade needed. Old version:', event.oldVersion, 'New version:', DB_VERSION);
       const dbInstance = (event.target as IDBOpenDBRequest).result;
       
       if (!dbInstance.objectStoreNames.contains(STORES.MODELS)) {
+        console.log('[DB] Creating "models" object store.');
         dbInstance.createObjectStore(STORES.MODELS, { keyPath: 'id', autoIncrement: true });
       }
       if (!dbInstance.objectStoreNames.contains(STORES.LOOKS)) {
+        console.log('[DB] Creating "looks" object store.');
         const looksStore = dbInstance.createObjectStore(STORES.LOOKS, { keyPath: 'id', autoIncrement: true });
         looksStore.createIndex('createdAt', 'createdAt', { unique: false });
       }
       // Added creation logic for the new lookboards store
       if (!dbInstance.objectStoreNames.contains(STORES.LOOKBOARDS)) {
+        console.log('[DB] Creating "lookboards" object store.');
         const lookboardsStore = dbInstance.createObjectStore(STORES.LOOKBOARDS, { keyPath: 'id', autoIncrement: true });
         lookboardsStore.createIndex('publicId', 'publicId', { unique: true });
       }
+      console.log('[DB] Database upgrade complete.');
     };
   });
 };

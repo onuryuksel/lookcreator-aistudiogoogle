@@ -26,40 +26,56 @@ const App: React.FC = () => {
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   const loadData = useCallback(async () => {
+    console.log('[App] Starting data load...');
     try {
       let dbModels = await db.getAll<Model>('models');
+      console.log('[App] Raw models from DB:', JSON.parse(JSON.stringify(dbModels)));
+      
       if (dbModels.length === 0) {
+        console.log('[App] No models found in DB, adding initial models.');
         await db.bulkAdd('models', INITIAL_MODELS);
         dbModels = await db.getAll<Model>('models');
       }
       const dbLooks = await db.getAll<Look>('looks');
-      const dbLookboards = await db.getAll<Lookboard>('lookboards');
-      
-      // Sanitize data to ensure compatibility with the current app version
-      // This prevents crashes if data from an older version is loaded from IndexedDB
-      const sanitizedLooks = dbLooks.map(look => ({
-          ...look,
-          createdAt: look.createdAt || Date.now(),
-          variations: look.variations || [],
-      }));
+      console.log('[App] Raw looks from DB:', JSON.parse(JSON.stringify(dbLooks)));
 
-      const sanitizedLookboards = dbLookboards.map(board => ({
-          ...board,
-          createdAt: board.createdAt || Date.now(),
-          updatedAt: board.updatedAt || Date.now(),
-          lookIds: board.lookIds || [],
-          feedbacks: board.feedbacks || {},
-          comments: board.comments || {},
-      }));
+      const dbLookboards = await db.getAll<Lookboard>('lookboards');
+      console.log('[App] Raw lookboards from DB:', JSON.parse(JSON.stringify(dbLookboards)));
       
+      console.log('[App] Starting data sanitization...');
+      const sanitizedLooks = dbLooks.map(look => {
+          console.log(`[App] Sanitizing look ID: ${look.id}`, look);
+          return {
+              ...look,
+              createdAt: look.createdAt || Date.now(),
+              variations: look.variations || [],
+          };
+      });
+
+      const sanitizedLookboards = dbLookboards.map(board => {
+          console.log(`[App] Sanitizing lookboard ID: ${board.id}`, board);
+          return {
+              ...board,
+              createdAt: board.createdAt || Date.now(),
+              updatedAt: board.updatedAt || Date.now(),
+              lookIds: board.lookIds || [],
+              feedbacks: board.feedbacks || {},
+              comments: board.comments || {},
+          };
+      });
+      console.log('[App] Data sanitization complete.');
+      
+      console.log('[App] Setting application state with sanitized data.');
       setModels(dbModels);
       setLooks(sanitizedLooks.sort((a, b) => b.createdAt - a.createdAt));
       setLookboards(sanitizedLookboards.sort((a, b) => b.createdAt - a.createdAt));
+      console.log('[App] Data loading process finished successfully.');
 
     } catch (error) {
-      console.error("Failed to load or sanitize data from IndexedDB:", error);
+      console.error("[App] CRITICAL: Failed to load or sanitize data from IndexedDB:", error);
     } finally {
       setIsLoading(false);
+      console.log('[App] Loading state set to false.');
     }
   }, []);
 
