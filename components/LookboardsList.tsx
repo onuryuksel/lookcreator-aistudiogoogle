@@ -36,7 +36,7 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete })
           <div>
             <h3 className="font-bold text-lg">{board.title}</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {board.lookIds.length} looks &bull; Created on {new Date(board.createdAt).toLocaleDateString()}
+              {(board.lookIds || []).length} looks &bull; Created on {new Date(board.createdAt).toLocaleDateString()}
             </p>
           </div>
           <div className="flex gap-2">

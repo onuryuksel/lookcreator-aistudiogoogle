@@ -1,28 +1,45 @@
-import React, { useState } from 'react';
-import { Modal, Button, Input } from './common';
+import React, { useState, useEffect } from 'react';
+import { Modal, Button, Input, Spinner } from './common';
 
 interface CreateLookboardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (title: string, note?: string) => void;
+  onSubmit: (title: string, note?: string) => Promise<void>;
 }
 
 const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isOpen) {
+        setTitle('');
+        setNote('');
+        setIsSubmitting(false);
+        setError(null);
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim()) {
-      onSubmit(title.trim(), note.trim());
-      // Reset fields for next time
-      setTitle('');
-      setNote('');
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        await onSubmit(title.trim(), note.trim());
+        // Parent will close modal on success
+      } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to create board. Please try again.");
+      } finally {
+          setIsSubmitting(false);
+      }
     }
   };
   
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create a Shareable Board">
+    <Modal isOpen={isOpen} onClose={() => !isSubmitting && onClose()} title="Create a Shareable Board">
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>
@@ -32,6 +49,7 @@ const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onC
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Autumn Collection for Ms. Smith"
               required
+              disabled={isSubmitting}
             />
           </div>
           <div>
@@ -42,12 +60,23 @@ const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onC
               rows={4}
               placeholder="e.g., Here are the looks we discussed. Let me know your thoughts!"
               className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
+              disabled={isSubmitting}
             />
           </div>
         </div>
+        
+        {error && (
+            <div className="mt-4 p-3 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 rounded-md text-sm">
+                <p><span className="font-bold">Error:</span> {error}</p>
+            </div>
+        )}
+
         <div className="mt-6 flex justify-end gap-3">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={!title.trim()}>Create Board</Button>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={!title.trim() || isSubmitting}>
+            {isSubmitting && <Spinner />}
+            {isSubmitting ? 'Creating...' : 'Create Board'}
+          </Button>
         </div>
       </form>
     </Modal>
