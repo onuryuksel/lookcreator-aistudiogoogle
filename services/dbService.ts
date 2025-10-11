@@ -1,103 +1,144 @@
-// This file implements a service for interacting with IndexedDB to persist application data.
-import { Model, Look, Lookboard } from '../types';
 
-const DB_NAME = 'OunassAIStudioDB';
-const DB_VERSION = 1;
+import { Look, Model, Lookboard } from '../types';
 
-const STORES = {
-  MODELS: 'models',
-  LOOKS: 'looks',
-  LOOKBOARDS: 'lookboards',
+// Since initialData.ts content is not provided, we will use empty arrays as a safe default.
+// The app will start with no data unless it already exists in localStorage.
+const INITIAL_MODELS: Model[] = [];
+const INITIAL_LOOKS: Look[] = [];
+
+// --- Generic DB Functions ---
+
+/**
+ * Saves data to localStorage under a specified key.
+ * @param key The localStorage key.
+ * @param data The data to save (will be JSON stringified).
+ */
+const saveToDb = <T>(key: string, data: T): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error(`[DB Service] Failed to save ${key} to localStorage:`, error);
+  }
 };
 
-let db: IDBDatabase;
-
-export const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    if (db) {
-      return resolve(db);
-    }
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => {
-      console.error('Database error:', request.error);
-      reject('Error opening database');
-    };
-
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const dbInstance = (event.target as IDBOpenDBRequest).result;
-      if (!dbInstance.objectStoreNames.contains(STORES.MODELS)) {
-        dbInstance.createObjectStore(STORES.MODELS, { keyPath: 'id', autoIncrement: true });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.LOOKS)) {
-        dbInstance.createObjectStore(STORES.LOOKS, { keyPath: 'id', autoIncrement: true });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.LOOKBOARDS)) {
-        const lookboardStore = dbInstance.createObjectStore(STORES.LOOKBOARDS, { keyPath: 'id', autoIncrement: true });
-        lookboardStore.createIndex('publicId', 'publicId', { unique: true });
-      }
-    };
-  });
+/**
+ * Loads data from localStorage.
+ * @param key The localStorage key.
+ * @param defaultValue The value to return if the key is not found or parsing fails.
+ * @returns The parsed data or the default value.
+ */
+const loadFromDb = <T>(key:string, defaultValue: T): T => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.error(`[DB Service] Failed to load ${key} from localStorage:`, error);
+    return defaultValue;
+  }
 };
 
-const performDbOperation = <T>(storeName: string, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest): Promise<T> => {
-    return initDB().then(dbInstance => new Promise<T>((resolve, reject) => {
-        const transaction = dbInstance.transaction(storeName, mode);
-        const store = transaction.objectStore(storeName);
-        const request = operation(store);
 
-        request.onsuccess = () => {
-            resolve(request.result as T);
-        };
-        request.onerror = () => {
-            console.error('DB operation error:', request.error);
-            reject(request.error);
-        };
-    }));
+// --- Models ---
+const MODELS_KEY = 'ounass_ai_studio_models';
+
+export const getModels = (): Model[] => {
+  return loadFromDb<Model[]>(MODELS_KEY, INITIAL_MODELS);
 };
 
-// Generic CRUD operations
-export const getAll = <T>(storeName: string): Promise<T[]> => performDbOperation<T[]>(storeName, 'readonly', store => store.getAll());
-export const getById = <T>(storeName: string, id: number): Promise<T> => performDbOperation<T>(storeName, 'readonly', store => store.get(id));
-export const add = <T>(storeName: string, item: Omit<T, 'id'>): Promise<number> => performDbOperation<number>(storeName, 'readwrite', store => store.add(item));
-export const update = <T>(storeName: string, item: T): Promise<number> => performDbOperation<number>(storeName, 'readwrite', store => store.put(item));
-export const remove = (storeName: string, id: number): Promise<void> => performDbOperation<void>(storeName, 'readwrite', store => store.delete(id));
+export const saveModels = (models: Model[]): void => {
+  saveToDb(MODELS_KEY, models);
+};
 
-// Models
-export const getAllModels = () => getAll<Model>(STORES.MODELS);
-export const addModel = (model: Omit<Model, 'id'>) => add<Model>(STORES.MODELS, model);
-export const deleteModel = (id: number) => remove(STORES.MODELS, id);
+export const addModel = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
+    const models = getModels();
+    // Using a timestamp for a simple unique ID, sufficient for this application's scope.
+    const newModel: Model = {
+        ...modelData,
+        id: Date.now(),
+    };
+    const updatedModels = [...models, newModel];
+    saveModels(updatedModels);
+    return newModel;
+};
 
-// Looks
-export const getAllLooks = () => getAll<Look>(STORES.LOOKS);
-export const addLook = (look: Omit<Look, 'id'>) => add<Look>(STORES.LOOKS, look);
-export const updateLook = (look: Look) => update<Look>(STORES.LOOKS, look);
-export const deleteLook = (id: number) => remove(STORES.LOOKS, id);
+export const deleteModel = (modelId: number): void => {
+    const models = getModels();
+    const updatedModels = models.filter(m => m.id !== modelId);
+    saveModels(updatedModels);
+};
 
-// Lookboards
-export const getAllLookboards = () => getAll<Lookboard>(STORES.LOOKBOARDS);
-export const addLookboard = (board: Omit<Lookboard, 'id'>) => add<Lookboard>(STORES.LOOKBOARDS, board);
-export const updateLookboard = (board: Lookboard) => update<Lookboard>(STORES.LOOKBOARDS, board);
-export const deleteLookboard = (id: number) => remove(STORES.LOOKBOARDS, id);
-export const getLookboardByPublicId = (publicId: string): Promise<Lookboard | undefined> => {
-    return initDB().then(dbInstance => new Promise<Lookboard | undefined>((resolve, reject) => {
-        const transaction = dbInstance.transaction(STORES.LOOKBOARDS, 'readonly');
-        const store = transaction.objectStore(STORES.LOOKBOARDS);
-        const index = store.index('publicId');
-        const request = index.get(publicId);
 
-        request.onsuccess = () => {
-            resolve(request.result as Lookboard | undefined);
-        };
-        request.onerror = () => {
-            console.error('DB getByPublicId error:', request.error);
-            reject(request.error);
-        };
-    }));
+// --- Looks ---
+const LOOKS_KEY = 'ounass_ai_studio_looks';
+
+export const getLooks = (): Look[] => {
+  return loadFromDb<Look[]>(LOOKS_KEY, INITIAL_LOOKS);
+};
+
+export const saveLooks = (looks: Look[]): void => {
+  saveToDb(LOOKS_KEY, looks);
+};
+
+export const addLook = (lookData: Omit<Look, 'id'>): Look => {
+    const looks = getLooks();
+    const newLook: Look = {
+        ...lookData,
+        id: Date.now(),
+    };
+    // Prepend new looks so they appear at the top of the lookbook
+    const updatedLooks = [newLook, ...looks];
+    saveLooks(updatedLooks);
+    return newLook;
+};
+
+export const updateLook = (updatedLook: Look): void => {
+    const looks = getLooks();
+    const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
+    saveLooks(updatedLooks);
+};
+
+export const deleteLook = (lookId: number): void => {
+    const looks = getLooks();
+    const updatedLooks = looks.filter(l => l.id !== lookId);
+    saveLooks(updatedLooks);
+};
+
+
+// --- Lookboards ---
+const LOOKBOARDS_KEY = 'ounass_ai_studio_lookboards';
+
+export const getLookboards = (): Lookboard[] => {
+    return loadFromDb<Lookboard[]>(LOOKBOARDS_KEY, []);
+};
+
+export const saveLookboards = (boards: Lookboard[]): void => {
+    saveToDb(LOOKBOARDS_KEY, boards);
+};
+
+export const addLookboard = (boardData: Omit<Lookboard, 'id'>): Lookboard => {
+    const boards = getLookboards();
+    const newBoard: Lookboard = {
+        ...boardData,
+        id: Date.now(),
+    };
+    const updatedBoards = [newBoard, ...boards];
+    saveLookboards(updatedBoards);
+    return newBoard;
+};
+
+export const updateLookboard = (updatedBoard: Lookboard): void => {
+    const boards = getLookboards();
+    const updatedBoards = boards.map(b => b.id === updatedBoard.id ? updatedBoard : b);
+    saveLookboards(updatedBoards);
+};
+
+export const deleteLookboard = (boardId: number): void => {
+    const boards = getLookboards();
+    const updatedBoards = boards.filter(b => b.id !== boardId);
+    saveLookboards(updatedBoards);
+};
+
+export const findLookboardByPublicId = (publicId: string): Lookboard | undefined => {
+    const boards = getLookboards();
+    return boards.find(b => b.publicId === publicId);
 };
