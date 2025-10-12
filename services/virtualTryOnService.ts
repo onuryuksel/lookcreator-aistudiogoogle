@@ -115,24 +115,41 @@ export const performVirtualTryOn = async (
 
     switch(category) {
         case 'Bags': {
-            const baseInstruction = `Composite the isolated bag (${productItemDescription}) onto the model. The model should hold it or wear it (e.g., on the shoulder, cross-body) in a natural, stylish way appropriate for the bag's type (e.g., tote, clutch, backpack).`;
+            // FIX: The instruction for bag scaling could be ignored. It has been rephrased to be
+            // a CRITICAL instruction with markdown emphasis to ensure the AI prioritizes it for
+            // correct, realistic scaling of the bag relative to the model.
+            let compositingInstructionBuilder = `Composite the isolated bag (${productItemDescription}) onto the model. The model should hold it or wear it (e.g., on the shoulder, cross-body) in a natural, stylish way appropriate for the bag's type (e.g., tote, clutch, backpack). Place it with a realistic sense of scale.`;
             
-            let finalInstruction = baseInstruction;
-    
             if (product.sizeAndFit && product.sizeAndFit.length > 0) {
-                const sizeInfo = `The bag's dimensions are approximately: ${product.sizeAndFit.join(', ')}. Use these dimensions to ensure the bag is scaled correctly relative to the model.`;
-                finalInstruction += ` ${sizeInfo}`;
+                const sizeInfo = `\n\n**CRITICAL SCALING INSTRUCTION:** The bag's dimensions are: ${product.sizeAndFit.join('; ')}. You MUST use these dimensions to render the bag at the correct scale relative to the model. This is essential for realism.`;
+                compositingInstructionBuilder += sizeInfo;
             }
             
-            finalInstruction += ` Place it with a realistic sense of scale.`;
-            compositingInstruction = finalInstruction;
+            compositingInstruction = compositingInstructionBuilder;
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         }
-        case 'Headwear':
-            compositingInstruction = `Composite the isolated headwear (${productItemDescription}, e.g., hat, sunglasses) onto the model's head or face. It must fit perfectly and be angled naturally.`;
-            preservationInstruction += ` The model's existing clothing must be fully preserved.`
+        case 'Headwear': {
+            const isHat = (product.class || '').toLowerCase().includes('hats') || product.name.toLowerCase().includes('hat');
+            
+            if (isHat) {
+                compositingInstruction = `
+**CRITICAL TASK: Fit the Hat Realistically.**
+Composite the isolated hat (${productItemDescription}) onto the model's head. This requires extreme attention to detail for a photorealistic result.
+
+1.  **Placement & Angle:** Place the hat at a natural, slightly tilted angle on the model's head. Avoid a perfectly straight, artificial placement.
+2.  **Hair Interaction:** The hat MUST interact with the model's hair. It should visibly press the hair down underneath it. Some strands of hair should naturally fall around the hat's brim or sides. Do not make the hair disappear; show how the hat realistically sits on it.
+3.  **Shadows & Lighting:** This is essential. The hat must cast a soft, realistic shadow on the model's forehead, face, and hair, consistent with the existing studio lighting. The shadow's direction and softness must perfectly match the lighting on the model.
+4.  **Scale:** Ensure the hat is scaled perfectly to the model's head size. It must not look oversized or undersized.
+`;
+            } else { // For sunglasses or other headwear
+                compositingInstruction = `Composite the isolated headwear (${productItemDescription}, e.g., sunglasses) onto the model's face. It must fit perfectly and be angled naturally, with realistic reflections and shadows on the face.`;
+            }
+            
+            // Updated preservation to explicitly protect facial identity.
+            preservationInstruction += ` The model's existing clothing must be fully preserved. The model's face and identity under the headwear must be perfectly preserved.`
             break;
+        }
         case 'Belts':
             compositingInstruction = `Composite the isolated belt (${productItemDescription}) around the model's waist, over their current outfit. Ensure it fits snugly and naturally.`;
             preservationInstruction += ` The clothing underneath the belt should be cinched realistically.`

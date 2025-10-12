@@ -19,13 +19,22 @@ export const fetchSkuData = async (sku: string): Promise<OunassSKU | null> => {
             src: `${IMAGE_BASE_URL}${m.src}`
         }));
 
-        // FIX: Correctly parse the 'sizeAndFit' field from the API response.
-        // The API returns an array of objects, e.g., [{ "label": "...", "values": ["..."] }].
-        // We need to extract the 'values' array of strings to match our OunassSKU type.
+        // FIX: Update 'sizeAndFit' parsing to handle multiple response formats from the API.
+        // The API can return an array of objects OR an HTML string.
         const rawSizeAndFit = data.sizeAndFit;
         let parsedSizeAndFit: string[] = [];
-        if (Array.isArray(rawSizeAndFit) && rawSizeAndFit.length > 0 && Array.isArray(rawSizeAndFit[0].values)) {
+        
+        if (Array.isArray(rawSizeAndFit) && rawSizeAndFit.length > 0 && rawSizeAndFit[0]?.values && Array.isArray(rawSizeAndFit[0].values)) {
+            // Case 1: Handle format: [{ "label": "...", "values": ["...", "..."] }]
             parsedSizeAndFit = rawSizeAndFit[0].values;
+        } else if (typeof rawSizeAndFit === 'string') {
+            // Case 2: Handle format: "<p>• Width: 36cm</p>\n<p>• Height: 28cm</p>..."
+            parsedSizeAndFit = rawSizeAndFit
+                .replace(/<p>/g, '\n')       // Replace opening <p> with a newline
+                .replace(/<\/p>/g, '')      // Remove closing </p>
+                .split('\n')                // Split into an array of lines
+                .map(line => line.replace(/•/g, '').trim()) // Remove bullet points and trim whitespace
+                .filter(line => line.length > 0); // Filter out any resulting empty lines
         }
 
         // Manually construct the OunassSKU object to match our type definition
