@@ -21,13 +21,24 @@ export default async function handler(
 
         const emailLower = email.toLowerCase();
         const userKey = `user:${emailLower}`;
-        const userData = await kv.get<string>(userKey);
+        // Get raw data without assuming type
+        const userData = await kv.get(userKey);
 
         if (!userData) {
             return response.status(404).json({ message: 'User not found' });
         }
 
-        const user: User = JSON.parse(userData);
+        let user: User;
+        // Defensively handle both string and object types from KV
+        if (typeof userData === 'string') {
+            user = JSON.parse(userData);
+        } else if (typeof userData === 'object' && userData !== null) {
+            user = userData as User;
+        } else {
+            console.error(`Corrupted data for user: ${emailLower}`);
+            return response.status(500).json({ message: 'Internal server error: Corrupted user data' });
+        }
+
         user.status = 'approved';
 
         // Update the user object and remove them from the pending set

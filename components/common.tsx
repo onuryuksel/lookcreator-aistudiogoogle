@@ -199,15 +199,15 @@ export const Dropdown: React.FC<DropdownProps> = ({ trigger, children }) => {
 
 
 // Dropdown Menu Item
-interface DropdownItemProps {
-    onClick?: () => void;
+// FIX: Extended DropdownItemProps to include all standard button attributes (like `disabled`)
+// and updated the component to pass them through. Also added disabled styles.
+interface DropdownItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     children: ReactNode;
-    className?: string;
 }
-export const DropdownItem: React.FC<DropdownItemProps> = ({ onClick, children, className }) => (
+export const DropdownItem: React.FC<DropdownItemProps> = ({ children, className, ...props }) => (
     <button
-        onClick={onClick}
-        className={`w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 flex items-center gap-3 ${className}`}
+        {...props}
+        className={`w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed ${className || ''}`.trim()}
         role="menuitem"
     >
         {children}
