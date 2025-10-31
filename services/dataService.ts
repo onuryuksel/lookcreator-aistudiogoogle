@@ -102,30 +102,42 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
 };
 
 export const importLegacyLooks = async (
-    fileContent: string, 
+    fileContent: string,
     models: Model[]
 ): Promise<Look[]> => {
     if (models.length === 0) {
-        throw new Error("Cannot import legacy looks: No models available to assign to the looks. Please create a model first.");
+        throw new Error("Cannot import: No models are available to assign to the new looks. Please create a model first.");
     }
     const defaultModel = models[0];
 
-    let legacyData;
+    let parsedJson;
     try {
-        legacyData = JSON.parse(fileContent);
+        parsedJson = JSON.parse(fileContent);
     } catch (e) {
-        throw new Error("Invalid import file. Could not parse JSON.");
+        throw new Error("Invalid import file format. Could not parse JSON.");
+    }
+
+    // Handle both direct array and object with 'looks' property
+    let legacyData: unknown;
+    if (Array.isArray(parsedJson)) {
+        legacyData = parsedJson;
+    } else if (parsedJson && typeof parsedJson === 'object' && 'looks' in parsedJson && Array.isArray((parsedJson as {looks: unknown[]}).looks)) {
+        legacyData = (parsedJson as {looks: unknown[]}).looks;
+    } else {
+        throw new Error("Invalid import file format. Expected a JSON array of looks, or an object containing a 'looks' array.");
     }
     
+    // Type check after resolving the structure
     if (!Array.isArray(legacyData)) {
-        throw new Error("Invalid import file format. Expected a JSON array of looks.");
+         throw new Error("Invalid import file format. The 'looks' property must be an array.");
     }
-    const legacyLooks: LegacyLook[] = legacyData;
+    const legacyLooks: LegacyLook[] = legacyData as LegacyLook[];
 
     const importedLooks: Look[] = [];
 
     // Process sequentially to avoid potential rate-limiting on the Ounass API
     for (const legacyLook of legacyLooks) {
+        // Basic validation of the legacy look object
         if (!legacyLook.productSkus || !Array.isArray(legacyLook.productSkus) || !legacyLook.finalImage) {
             console.warn("Skipping invalid legacy look object:", legacyLook);
             continue;
@@ -135,15 +147,20 @@ export const importLegacyLooks = async (
             legacyLook.productSkus.map(sku => ounassService.fetchSkuData(sku))
         )).filter((p): p is OunassSKU => p !== null);
 
-        const newLook: Look = {
-            id: db.generateId(),
-            model: defaultModel,
-            products: productData,
-            finalImage: legacyLook.finalImage,
-            variations: [], // Legacy looks don't have variations
-            createdAt: Date.now(),
-        };
-        importedLooks.push(newLook);
+        // Only create a look if we could find product data
+        if (productData.length > 0) {
+            const newLook: Look = {
+                id: db.generateId(),
+                model: defaultModel,
+                products: productData,
+                finalImage: legacyLook.finalImage,
+                variations: [], // Legacy looks don't have variations
+                createdAt: Date.now(),
+            };
+            importedLooks.push(newLook);
+        } else {
+            console.warn(`Skipping legacy look with SKUs [${legacyLook.productSkus.join(', ')}] as no product data could be found.`);
+        }
     }
     
     return importedLooks;

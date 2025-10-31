@@ -523,6 +523,10 @@ const CreatorStudio: React.FC = () => {
             showToast('You must be an admin to perform this action.', 'error');
             return;
         }
+        if (models.length === 0) {
+            showToast("Please create at least one model before importing legacy looks.", "error");
+            return;
+        }
 
         const input = document.createElement('input');
         input.type = 'file';
@@ -543,6 +547,7 @@ const CreatorStudio: React.FC = () => {
                     const newLooks = await dataService.importLegacyLooks(fileContent, models);
                     if (newLooks.length === 0) {
                         showToast("No valid looks found in the import file.", "success");
+                        setIsImporting(false); // End loading state here
                         return;
                     }
 
@@ -692,7 +697,6 @@ const CreatorStudio: React.FC = () => {
                  return activeLook ? <div className="p-6"><ConversationalEditPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
                     onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
@@ -700,7 +704,6 @@ const CreatorStudio: React.FC = () => {
                  return activeLook ? <div className="p-6"><LifestyleShootPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
                     onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
@@ -708,7 +711,6 @@ const CreatorStudio: React.FC = () => {
                  return activeLook ? <div className="p-6"><VideoCreationPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
                     onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
