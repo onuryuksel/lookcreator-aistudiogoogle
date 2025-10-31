@@ -120,7 +120,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             aria-labelledby="modal-title"
         >
             <div
-                className="bg-white dark:bg-zinc-900 rounded-none sm:rounded-lg shadow-xl w-full h-full sm:h-auto sm:max-w-4xl flex flex-col"
+                className="bg-white dark:bg-zinc-900 rounded-none sm:rounded-lg shadow-xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center flex-shrink-0">

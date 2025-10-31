@@ -114,7 +114,9 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
             >
                 <div>
                     <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6">
-                       <img src={selectedLook.finalImage} alt="Look" className="w-full h-auto object-cover sm:rounded-t-lg" />
+                        <div className="bg-zinc-100 dark:bg-zinc-800 sm:rounded-t-lg flex justify-center items-center min-h-[300px]">
+                            <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
+                        </div>
                     </div>
                     <div>
                          <h3 className="text-lg font-bold mb-4">Products ({selectedLook.products.length})</h3>
