@@ -29,7 +29,6 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isApiKeyReady, setIsApiKeyReady] = useState(false);
   const { showToast } = useToast();
 
   const allImages = useMemo(() => {
@@ -37,23 +36,6 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
       (asset) => asset && !asset.startsWith('data:video/') && !asset.includes('.mp4') // Filter out videos
     );
   }, [look.finalImage, look.variations]);
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setIsApiKeyReady(hasKey);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-        await window.aistudio.openSelectKey();
-        setIsApiKeyReady(true);
-    }
-  };
 
   const handleGenerateBrief = async () => {
     setIsGenerating(true);
@@ -86,8 +68,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
     } catch (err) {
       console.error("Error generating video:", err);
       if (err instanceof Error && err.message === 'API_KEY_INVALID') {
-        setError("Your API key is invalid or requires billing to be enabled. Please select a valid key and try again.");
-        setIsApiKeyReady(false);
+        setError("Your API key is invalid or requires billing to be enabled. Please check your Vercel environment variables.");
       } else {
         setError(err instanceof Error ? err.message : 'Failed to generate video.');
       }
@@ -201,15 +182,6 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
           <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
             {renderContent()}
             
-            {!isApiKeyReady && step !== 'result' && (
-                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/40 border-l-4 border-yellow-400 dark:border-yellow-500 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm space-y-3">
-                    <p className="font-bold">Action Required</p>
-                    <p>To generate videos with Veo, you need to select an API key and ensure billing is enabled for its project.</p>
-                     <p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Learn more about billing.</a></p>
-                    <Button onClick={handleSelectKey} variant="secondary">Select API Key</Button>
-                </div>
-            )}
-
             {error && (
               <div className="mt-4 p-3 bg-red-100 dark:bg-red-900/40 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 rounded-lg">
                 <p className="font-bold text-sm">An Error Occurred</p>
@@ -218,12 +190,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
             )}
             <div className="mt-6 flex justify-end">
               {step === 'input' && (
-                <Button onClick={handleGenerateBrief} disabled={isGenerating || !isApiKeyReady}>
+                <Button onClick={handleGenerateBrief} disabled={isGenerating}>
                   {isGenerating ? <Spinner /> : 'Generate Brief'}
                 </Button>
               )}
               {step === 'review' && (
-                <Button onClick={handleGenerateVideo} disabled={isGenerating || !isApiKeyReady}>
+                <Button onClick={handleGenerateVideo} disabled={isGenerating}>
                   {isGenerating ? <Spinner /> : 'Generate Video'}
                 </Button>
               )}
