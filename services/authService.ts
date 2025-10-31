@@ -9,19 +9,19 @@ const handleResponse = async (response: Response) => {
 };
 
 export const signup = async (username: string, email: string, password: string): Promise<void> => {
-    const response = await fetch('/api/auth/signup', {
+    const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ action: 'signup', username, email, password }),
     });
     await handleResponse(response);
 };
 
 export const login = async (email: string, password: string): Promise<User> => {
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ action: 'login', email, password }),
     });
     const { user } = await handleResponse(response);
     return user;

@@ -1,37 +1,90 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { User } from '../../types';
+import { User } from '../types';
 import crypto from 'crypto';
+
+const ADMIN_EMAIL = 'oyouksel@altayer.com'; 
 
 export default async function handler(
   request: NextApiRequest,
   response: NextApiResponse,
 ) {
-    // 1. Ensure the request is a POST request
     if (request.method !== 'POST') {
         return response.status(405).json({ message: 'Method Not Allowed' });
     }
 
+    const { action } = request.body;
+
+    switch(action) {
+        case 'signup':
+            return await handleSignup(request, response);
+        case 'login':
+            return await handleLogin(request, response);
+        default:
+            return response.status(400).json({ message: 'Invalid or missing action.' });
+    }
+}
+
+async function handleSignup(request: NextApiRequest, response: NextApiResponse) {
     try {
-        // 2. Extract email and password from the request body
+        const { username, email, password } = request.body;
+
+        if (!username || !email || !password) {
+            return response.status(400).json({ message: 'Missing required fields' });
+        }
+
+        const emailLower = email.toLowerCase();
+        const userKey = `user:${emailLower}`;
+        const existingUser = await kv.get(userKey);
+
+        if (existingUser) {
+            return response.status(409).json({ message: 'User with this email already exists' });
+        }
+
+        const isFirstAdmin = emailLower === ADMIN_EMAIL.toLowerCase();
+
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hashedPassword = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+
+        const newUser: User = {
+            username,
+            email: emailLower,
+            hashedPassword,
+            salt,
+            status: isFirstAdmin ? 'approved' : 'pending',
+            role: isFirstAdmin ? 'admin' : 'user',
+            createdAt: Date.now(),
+        };
+
+        await kv.set(userKey, JSON.stringify(newUser));
+        if (!isFirstAdmin) {
+            await kv.sadd('pending_users', emailLower);
+        }
+
+        return response.status(201).json({ message: 'User created successfully. Awaiting approval.' });
+    } catch (error) {
+        console.error(error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
+
+async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
+    try {
         const { email, password } = request.body;
 
         if (!email || !password) {
             return response.status(400).json({ message: 'Email and password are required' });
         }
         
-        // 3. Fetch user data from the database using a standardized key
         const emailLower = email.toLowerCase();
         const userKey = `user:${emailLower}`;
-        const userData = await kv.get(userKey); // Get the raw value from KV
+        const userData = await kv.get(userKey);
 
         if (!userData) {
             return response.status(404).json({ message: 'Invalid credentials' });
         }
         
         let user: User;
-        // Defensively check if userData is a string that needs parsing,
-        // or if the KV client returned an already-parsed object.
         if (typeof userData === 'string') {
             try {
                 user = JSON.parse(userData);
@@ -46,30 +99,23 @@ export default async function handler(
             return response.status(500).json({ message: 'Internal Server Error: Invalid user data format.' });
         }
 
-        // 4. Validate the hashed password
         if (!user.salt || !user.hashedPassword) {
-            // This handles legacy users or corrupted data by denying login.
             return response.status(401).json({ message: 'Invalid credentials' });
         }
         const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
         const isPasswordValid = user.hashedPassword === hash;
 
-
         if (!isPasswordValid) {
             return response.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // 5. Check if the user's account has been approved by an admin
         if (user.status !== 'approved') {
             return response.status(403).json({ message: 'Your account is pending approval.' });
         }
 
-        // 6. IMPORTANT: Remove sensitive auth fields before sending to client
         delete user.hashedPassword;
         delete user.salt;
 
-
-        // 7. Send a successful response with the user data
         return response.status(200).json({ message: 'Login successful', user });
 
     } catch (error) {
