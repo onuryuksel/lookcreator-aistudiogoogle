@@ -32,9 +32,6 @@ const AuthPage: React.FC = () => {
 
                     {activeTab === 'login' ? <LoginForm /> : <SignupForm />}
                 </Card>
-                 <p className="text-xs text-zinc-500 text-center mt-4">
-                    NOTE: This is a demonstration. For security reasons in this environment, passwords are not encrypted. Do not use a real password.
-                </p>
             </div>
         </div>
     );

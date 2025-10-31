@@ -151,7 +151,8 @@ export interface User {
   status: 'pending' | 'approved';
   role: 'user' | 'admin';
   createdAt: number;
-  // FIX: Added optional password field to align the type with its usage in the auth API routes.
-  // This property is for server-side use only and is stripped before sending user data to the client.
-  password?: string;
+  // FIX: Replaced plaintext password with a hashed password and salt for secure storage.
+  // These properties are for server-side use only and are stripped before sending user data to the client.
+  hashedPassword?: string;
+  salt?: string;
 }

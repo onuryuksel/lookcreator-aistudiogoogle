@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { User } from '../../types';
+import crypto from 'crypto';
 
 export default async function handler(
   request: NextApiRequest,
@@ -45,8 +46,14 @@ export default async function handler(
             return response.status(500).json({ message: 'Internal Server Error: Invalid user data format.' });
         }
 
-        // 4. Validate the password (NOTE: This is an insecure plaintext comparison for demo purposes)
-        const isPasswordValid = user.password === password;
+        // 4. Validate the hashed password
+        if (!user.salt || !user.hashedPassword) {
+            // This handles legacy users or corrupted data by denying login.
+            return response.status(401).json({ message: 'Invalid credentials' });
+        }
+        const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
+        const isPasswordValid = user.hashedPassword === hash;
+
 
         if (!isPasswordValid) {
             return response.status(401).json({ message: 'Invalid credentials' });
@@ -57,8 +64,10 @@ export default async function handler(
             return response.status(403).json({ message: 'Your account is pending approval.' });
         }
 
-        // 6. IMPORTANT: Remove password from the user object before sending it to the client
-        delete user.password;
+        // 6. IMPORTANT: Remove sensitive auth fields before sending to client
+        delete user.hashedPassword;
+        delete user.salt;
+
 
         // 7. Send a successful response with the user data
         return response.status(200).json({ message: 'Login successful', user });

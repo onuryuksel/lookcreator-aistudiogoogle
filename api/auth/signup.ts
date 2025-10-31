@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { User } from '../../types';
+import crypto from 'crypto';
 
 // IMPORTANT: Set your admin email here. The first user to sign up with this email gets admin privileges.
 const ADMIN_EMAIL = 'oyouksel@altayer.com'; 
@@ -30,13 +31,15 @@ export default async function handler(
 
         const isFirstAdmin = emailLower === ADMIN_EMAIL.toLowerCase();
 
+        // Securely hash the password
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hashedPassword = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+
         const newUser: User = {
             username,
             email: emailLower,
-            // WARNING: Storing plaintext passwords. This is NOT secure and is for demo purposes only.
-            // In a production environment, you MUST hash the password using a library like bcrypt.
-            // password: await bcrypt.hash(password, 10),
-            password, // Storing plaintext password
+            hashedPassword,
+            salt,
             status: isFirstAdmin ? 'approved' : 'pending',
             role: isFirstAdmin ? 'admin' : 'user',
             createdAt: Date.now(),

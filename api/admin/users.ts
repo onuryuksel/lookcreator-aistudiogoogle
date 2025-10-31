@@ -43,7 +43,9 @@ export default async function handler(
                     return null; // Skip unexpected data types
                 }
 
-                delete user.password; // Don't send password to client
+                // Strip sensitive auth fields before sending to client
+                delete user.hashedPassword;
+                delete user.salt;
                 return user;
             })
             // Filter out any nulls that resulted from parsing errors or bad data.
