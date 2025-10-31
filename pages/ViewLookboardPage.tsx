@@ -67,7 +67,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
     <div className="min-h-screen bg-stone-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <header className="py-6 mb-4">
-            <OunassLogo className="h-16 mx-auto" />
+            <OunassLogo className="h-32 mx-auto" />
         </header>
         
         <main>
