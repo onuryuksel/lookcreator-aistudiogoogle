@@ -105,9 +105,9 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
               onClick={onGoToCreator}
               className="group break-inside-avoid cursor-pointer"
             >
-              <div className="w-full aspect-[3/4] bg-zinc-100 dark:bg-zinc-800/50 rounded-lg flex items-center justify-center border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors">
-                <div className="text-center text-zinc-600 dark:text-zinc-400">
-                  <PlusIcon className="mx-auto h-8 w-8" />
+              <div className="w-full aspect-[3/4] bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800/50 rounded-lg flex items-center justify-center border border-zinc-200 dark:border-zinc-800 shadow-md transition-all duration-300 ease-in-out hover:shadow-lg hover:scale-105 hover:border-zinc-300 dark:hover:border-zinc-700">
+                <div className="text-center text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors">
+                  <PlusIcon className="mx-auto h-10 w-10" />
                   <span className="mt-2 block text-sm font-semibold">Create New Look</span>
                 </div>
               </div>
