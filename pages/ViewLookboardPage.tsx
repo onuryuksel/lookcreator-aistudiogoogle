@@ -66,14 +66,17 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        <header className="py-6 border-b border-zinc-200 dark:border-zinc-800 mb-8 sm:mb-12">
-            <OunassLogo className="h-8 mx-auto" />
+        <header className="py-6 mb-4">
+            <OunassLogo className="h-12 mx-auto" />
         </header>
         
         <main>
             <div className="text-center mb-10">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+                  A lookboard curated by <span className="font-semibold text-zinc-600 dark:text-zinc-400">{lookboard.createdByUsername}</span>
+              </p>
               <h2 
-                className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100'
+                className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mt-2'
               >
                 {lookboard.title}
               </h2>
@@ -98,9 +101,6 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
         </main>
         
         <footer className="text-center mt-16 py-6 border-t border-zinc-200 dark:border-zinc-800">
-             <p className="text-sm text-zinc-500 dark:text-zinc-500 mb-2">
-                A lookboard curated by <span className="font-semibold text-zinc-600 dark:text-zinc-400">{lookboard.createdByUsername}</span>
-            </p>
             <p className="text-sm text-zinc-500 dark:text-zinc-500">
                 &copy; {new Date().getFullYear()} Ounass. All Rights Reserved.
             </p>
