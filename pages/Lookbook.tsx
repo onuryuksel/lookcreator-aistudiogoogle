@@ -6,6 +6,8 @@ import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
 import ShareLinkModal from '../components/ShareLinkModal';
 import { PlusIcon, ShareIcon } from '../components/Icons';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface LookbookProps {
   looks: Look[];
@@ -24,6 +26,9 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
   const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
   const [newlyCreatedBoard, setNewlyCreatedBoard] = useState<Lookboard | null>(null);
 
+  const { user } = useAuth();
+  const { showToast } = useToast();
+
   const handleToggleLookSelection = (lookId: number) => {
     setSelectedLookIds(prev => {
       const newSet = new Set(prev);
@@ -36,7 +41,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
     });
   };
 
-  const handleCreateLookboard = async (title: string, note?: string) => {
+  const handleCreateLookboard = async (title: string, note: string | undefined, visibility: 'public' | 'private') => {
+    if (!user) {
+        showToast("You must be logged in to create a board.", "error");
+        return;
+    }
+
     const newBoard: Lookboard = {
       id: db.generateId(),
       publicId: Math.random().toString(36).substring(2, 10),
@@ -45,7 +55,10 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
       lookIds: Array.from(selectedLookIds),
       createdAt: Date.now(),
       feedbacks: {},
-      comments: {}
+      comments: {},
+      visibility,
+      createdBy: user.email,
+      createdByUsername: user.username,
     };
 
     const updatedLookboards = [...lookboards, newBoard];

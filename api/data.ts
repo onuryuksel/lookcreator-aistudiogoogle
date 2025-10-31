@@ -27,18 +27,19 @@ async function handleGet(request: NextApiRequest, response: NextApiResponse) {
         const boardsKey = `lookboards:${emailLower}`;
         const overridesKey = `user_overrides:${emailLower}`;
         const publicLooksKey = 'public_looks_hash';
+        const publicLookboardsKey = 'public_lookboards_hash';
 
         const [
             userLooks, 
             publicLooksMap, 
-            lookboards, 
+            userPrivateLookboards,
+            publicLookboardsMap,
             overrides
         ] = await Promise.all([
             kv.get<Look[]>(userLooksKey),
-            // FIX: Remove incorrect generic and let KV client infer return type.
-            // This makes the code more resilient to the client's auto-parsing behavior.
             kv.hgetall(publicLooksKey),
             kv.get<Lookboard[]>(boardsKey),
+            kv.hgetall(publicLookboardsKey),
             kv.get<LookOverrides>(overridesKey)
         ]);
         
@@ -81,9 +82,40 @@ async function handleGet(request: NextApiRequest, response: NextApiResponse) {
         
         const combinedLooks = Array.from(combinedLooksMap.values());
 
+        const combinedLookboardsMap = new Map<number, Lookboard>();
+
+        // Add all public lookboards
+        if (publicLookboardsMap) {
+            Object.values(publicLookboardsMap).forEach(boardData => {
+                if (!boardData) return;
+
+                let board: Lookboard;
+                if (typeof boardData === 'string') {
+                    try { board = JSON.parse(boardData); } catch (e) { return; }
+                } else if (typeof boardData === 'object' && boardData !== null) {
+                    board = boardData as Lookboard;
+                } else {
+                    return;
+                }
+
+                if (board && typeof board.id === 'number') {
+                    combinedLookboardsMap.set(board.id, board);
+                }
+            });
+        }
+
+        // Add user's own private lookboards
+        if (userPrivateLookboards) {
+            userPrivateLookboards.forEach(board => {
+                if (board) combinedLookboardsMap.set(board.id, board);
+            });
+        }
+
+        const combinedLookboards = Array.from(combinedLookboardsMap.values());
+
         return response.status(200).json({
             looks: combinedLooks || [],
-            lookboards: lookboards || [],
+            lookboards: combinedLookboards || [],
             overrides: overrides || {},
         });
 

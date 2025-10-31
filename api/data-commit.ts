@@ -65,28 +65,63 @@ export default async function handler(
         updatedPublicLooksFromOthers.forEach(look => {
             looksToUpdatePubliclyMap[String(look.id)] = look;
         });
-        // --- END REVISED Public Look Logic ---
+        
+        // --- Public Lookboard Logic ---
+        const userLookboardsKey = `lookboards:${emailLower}`;
+        const publicLookboardsKey = 'public_lookboards_hash';
+
+        const oldUserLookboards: Lookboard[] = await kv.get(userLookboardsKey) || [];
+        const currentUserLookboards = allLookboards.filter(b => b.createdBy === emailLower);
+        const updatedPublicLookboardsFromOthers = allLookboards.filter(b => b.visibility === 'public' && b.createdBy !== emailLower);
+
+        const privateLookboards = currentUserLookboards.filter(b => b.visibility !== 'public');
+        const publicLookboardsFromUser = currentUserLookboards.filter(b => b.visibility === 'public');
+
+        const oldPublicLookboardIdsFromUser = new Set(oldUserLookboards.filter(b => b.visibility === 'public').map(b => b.id));
+        const newPublicLookboardIdsFromUser = new Set(publicLookboardsFromUser.map(b => b.id));
+
+        const boardIdsToRemovePublicly = oldUserLookboards
+            .filter(b => oldPublicLookboardIdsFromUser.has(b.id) && !newPublicLookboardIdsFromUser.has(b.id))
+            .map(b => String(b.id));
+
+        const boardsToUpdatePubliclyMap: Record<string, Lookboard> = {};
+        publicLookboardsFromUser.forEach(board => {
+            boardsToUpdatePubliclyMap[String(board.id)] = board;
+        });
+        updatedPublicLookboardsFromOthers.forEach(board => {
+            boardsToUpdatePubliclyMap[String(board.id)] = board;
+        });
+        
 
         const pipeline = kv.pipeline();
         
-        // 5. Execute the pipeline
-        // Update the public hash with all additions/modifications
+        // Update public looks hash
         if (Object.keys(looksToUpdatePubliclyMap).length > 0) {
             pipeline.hset(publicLooksKey, looksToUpdatePubliclyMap);
         }
-        // Remove any of the user's looks that are no longer public
         if (lookIdsToRemovePublicly.length > 0) {
             pipeline.hdel(publicLooksKey, ...lookIdsToRemovePublicly);
         }
 
-        // 6. Overwrite the user's personal list of looks with their latest set
+        // Overwrite user's personal list of looks
         pipeline.set(userLooksKey, currentUserLooks);
-        pipeline.set(`lookboards:${emailLower}`, allLookboards);
-        pipeline.set(`user_overrides:${emailLower}`, overrides);
+        
+        // Update public lookboards hash
+        if (Object.keys(boardsToUpdatePubliclyMap).length > 0) {
+            pipeline.hset(publicLookboardsKey, boardsToUpdatePubliclyMap);
+        }
+        if (boardIdsToRemovePublicly.length > 0) {
+            pipeline.hdel(publicLookboardsKey, ...boardIdsToRemovePublicly);
+        }
 
+        // Overwrite user's private list of lookboards
+        pipeline.set(userLookboardsKey, privateLookboards);
+
+        // Save overrides and commit
+        pipeline.set(`user_overrides:${emailLower}`, overrides);
         await pipeline.exec();
 
-        // 7. Clean up temporary chunks
+        // Clean up temporary chunks
         const allChunkKeys = [...lookChunkKeys, ...lookboardChunkKeys];
         if (allChunkKeys.length > 0) {
             await kv.del(...allChunkKeys);

@@ -74,6 +74,9 @@ export interface Lookboard {
     note?: string;
     lookIds: number[];
     createdAt: number;
+    visibility?: 'public' | 'private';
+    createdBy: string; // user email
+    createdByUsername: string;
     // Key is lookId, value is 'liked' or 'disliked'
     feedbacks?: Record<number, 'liked' | 'disliked'>;
     // Key is lookId, value is an array of comments

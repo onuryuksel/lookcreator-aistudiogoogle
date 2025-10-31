@@ -2,6 +2,7 @@ import React from 'react';
 import { Lookboard } from '../types';
 import { Card, Button } from './common';
 import { ShareIcon, TrashIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LookboardsListProps {
   lookboards: Lookboard[];
@@ -10,6 +11,7 @@ interface LookboardsListProps {
 }
 
 const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, isSaving }) => {
+  const { user } = useAuth();
   
   const handleCopyLink = (publicId: string) => {
     const url = `${window.location.origin}/board/${publicId}`;
@@ -32,33 +34,39 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, i
 
   return (
     <div className="space-y-4">
-      {lookboards.map(board => (
-        <Card key={board.id} className="flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-lg">{board.title}</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {(board.lookIds || []).length} looks &bull; Created on {new Date(board.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => handleCopyLink(board.publicId)} disabled={isSaving}>
-              <ShareIcon /> Copy Link
-            </Button>
-            <Button 
-                variant="secondary" 
-                onClick={() => {
-                    if (window.confirm(`Are you sure you want to delete the board "${board.title}"?`)) {
-                        onDelete(board.id!);
-                    }
-                }} 
-                className="hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"
-                disabled={isSaving}
-            >
-              <TrashIcon />
-            </Button>
-          </div>
-        </Card>
-      ))}
+      {lookboards.map(board => {
+        const isCreator = user?.email === board.createdBy;
+        return (
+          <Card key={board.id} className="flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-lg">{board.title}</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {(board.lookIds || []).length} looks &bull; 
+                {board.createdByUsername ? ` Created by ${board.createdByUsername}` : ''} on {new Date(board.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => handleCopyLink(board.publicId)} disabled={isSaving}>
+                <ShareIcon /> Copy Link
+              </Button>
+              {isCreator && (
+                <Button 
+                    variant="secondary" 
+                    onClick={() => {
+                        if (window.confirm(`Are you sure you want to delete the board "${board.title}"?`)) {
+                            onDelete(board.id!);
+                        }
+                    }} 
+                    className="hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"
+                    disabled={isSaving}
+                >
+                  <TrashIcon />
+                </Button>
+              )}
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 };
