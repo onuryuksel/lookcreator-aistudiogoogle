@@ -10,7 +10,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const productUrl = `https://www.ounass.ae/${product.urlKey}.html`;
 
   return (
-    <div className="w-48 flex-shrink-0">
+    <div className="w-32 sm:w-40">
       <Card className="flex flex-col h-full p-3">
         <a href={productUrl} target="_blank" rel="noopener noreferrer" className="block group">
           <div className="aspect-[3/4] bg-white rounded-md overflow-hidden mb-2">

@@ -67,8 +67,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
 
             {looks.length > 0 ? (
                 <div 
-                    className="grid gap-4 sm:gap-6"
-                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
+                    className="columns-2 md:columns-3 lg:columns-4 gap-4 sm:gap-6 space-y-4 sm:space-y-6"
                 >
                     {looks.map(look => (
                         <LookboardCard
@@ -112,7 +111,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                          <h3 className="text-lg font-bold mb-4">Products ({selectedLook.products.length})</h3>
                          {selectedLook.products.length > 0 ? (
                             <div className="relative">
-                                <div className="flex gap-4 overflow-x-auto pb-4 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
+                                <div className="flex flex-wrap gap-4">
                                     {selectedLook.products.map(product => (
                                         <ProductCard key={product.id} product={product} />
                                     ))}

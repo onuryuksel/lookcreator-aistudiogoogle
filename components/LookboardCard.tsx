@@ -27,15 +27,15 @@ const LookboardCard: React.FC<LookboardCardProps> = ({ look, feedback, comments,
   };
 
   return (
-    <Card className="p-0 flex flex-col">
+    <Card className="p-0 flex flex-col break-inside-avoid">
       <div 
-        className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-t-lg overflow-hidden group cursor-pointer"
+        className="bg-zinc-100 dark:bg-zinc-800 rounded-t-lg overflow-hidden group cursor-pointer"
         onClick={onImageClick}
       >
         <img 
           src={look.finalImage} 
           alt="Look" 
-          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" 
+          className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105" 
         />
       </div>
       
