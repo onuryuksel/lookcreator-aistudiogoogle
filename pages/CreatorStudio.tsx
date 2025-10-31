@@ -346,26 +346,55 @@ const CreatorStudio: React.FC = () => {
             showToast('You must be logged in to sync data.', 'error');
             return;
         }
-
+    
         const localLooks = await db.getLooks();
         const localLookboards = await db.getLookboards();
-
+    
         if (localLooks.length === 0 && localLookboards.length === 0) {
             showToast('No local data found to sync.', 'success');
             return;
         }
-
-        if (window.confirm(`This will upload your ${localLooks.length} local looks and ${localLookboards.length} local boards to your account. This action cannot be undone. Continue?`)) {
+    
+        // The `looks` and `lookboards` in state are the current data from the server.
+        const serverLooks = looks;
+        const serverLookboards = lookboards;
+    
+        // Merge local data with server data, preventing duplicates.
+        // A Map is used to ensure unique IDs. If an ID exists in both local and server,
+        // the local one will overwrite the server one, which is reasonable for a migration.
+        const combinedLooksMap = new Map<number, Look>();
+        serverLooks.forEach(look => combinedLooksMap.set(look.id, look));
+        localLooks.forEach(look => combinedLooksMap.set(look.id, look));
+        const mergedLooks = Array.from(combinedLooksMap.values());
+    
+        const combinedLookboardsMap = new Map<number, Lookboard>();
+        serverLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
+        localLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
+        const mergedLookboards = Array.from(combinedLookboardsMap.values());
+        
+        // Check if there's actually anything new to add.
+        const newLooksCount = mergedLooks.length - serverLooks.length;
+        const newBoardsCount = mergedLookboards.length - serverLookboards.length;
+        
+        if (newLooksCount <= 0 && newBoardsCount <= 0) {
+            showToast('Local data is already in sync. Clearing local cache.', 'success');
+            await db.clearLooks();
+            await db.clearLookboards();
+            return;
+        }
+    
+        if (window.confirm(`This will merge your ${localLooks.length} local look(s) and ${localLookboards.length} local board(s) with your cloud account. Continue?`)) {
             setIsMigrating(true);
             try {
-                await dataService.saveServerData(user.email, localLooks, localLookboards);
+                // Save the *merged* data back to the server.
+                await dataService.saveServerData(user.email, mergedLooks, mergedLookboards);
                 showToast('Data successfully synced to your account!', 'success');
                 
-                // Clear local data to prevent duplicates
+                // Clear local data now that it's been migrated.
                 await db.clearLooks();
                 await db.clearLookboards();
                 
-                // Reload data from server
+                // Reload data from server to update the UI with the merged data.
                 await loadData();
             } catch (error) {
                 console.error('Failed to migrate data:', error);
