@@ -1,28 +1,19 @@
 import React from 'react';
 import { Lookboard } from '../types';
-import { Card, Button } from './common';
+import { Card, Button, Spinner } from './common';
 import { ShareIcon, TrashIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LookboardsListProps {
   lookboards: Lookboard[];
   onDelete: (id: number) => void;
+  onShare: (board: Lookboard) => void; // This will now open the options modal
   isSaving: boolean;
 }
 
-const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, isSaving }) => {
+const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, onShare, isSaving }) => {
   const { user } = useAuth();
   
-  const handleCopyLink = (publicId: string) => {
-    const url = `${window.location.origin}/board/${publicId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Link copied to clipboard!');
-    }, (err) => {
-      console.error('Could not copy text: ', err);
-      alert('Failed to copy link.');
-    });
-  };
-
   if (lookboards.length === 0) {
     return (
       <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -46,8 +37,9 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, i
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => handleCopyLink(board.publicId)} disabled={isSaving}>
-                <ShareIcon /> Copy Link
+              <Button variant="secondary" onClick={() => onShare(board)} disabled={isSaving}>
+                <ShareIcon />
+                Share
               </Button>
               {isCreator && (
                 <Button 

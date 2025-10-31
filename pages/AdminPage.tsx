@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { getPendingUsers, approveUser, migrateLegacyLooks } from '../services/authService';
+import { getPendingUsers, approveUser, migrateLegacyLooks, reindexBoards } from '../services/authService';
 import { Card, Button, Spinner } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -9,6 +9,7 @@ const AdminPage: React.FC = () => {
     const [pendingUsers, setPendingUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMigrating, setIsMigrating] = useState(false);
+    const [isIndexing, setIsIndexing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user, logout } = useAuth();
     const { showToast } = useToast();
@@ -59,6 +60,24 @@ const AdminPage: React.FC = () => {
         }
     };
 
+    const handleReindex = async () => {
+        if (!window.confirm('This will scan all lookboards and create a fast-access index for share links. This is safe to run multiple times. Continue?')) {
+            return;
+        }
+        setIsIndexing(true);
+        setError(null);
+        try {
+            const result = await reindexBoards();
+            showToast(result.message, 'success');
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to re-index boards.';
+            showToast(errorMessage, 'error');
+            setError(errorMessage);
+        } finally {
+            setIsIndexing(false);
+        }
+    };
+
     if (user?.role !== 'admin') {
         return (
             <div className="h-screen w-full flex items-center justify-center">
@@ -81,45 +100,59 @@ const AdminPage: React.FC = () => {
                     </div>
                 </header>
                 
-                <Card>
-                    <h2 className="text-xl font-semibold mb-4">Pending Approvals</h2>
-                    {loading ? (
-                        <div className="flex items-center justify-center p-8">
-                            <Spinner />
-                            <span className="ml-2">Loading users...</span>
-                        </div>
-                    ) : error ? (
-                        <p className="text-red-500">{error}</p>
-                    ) : pendingUsers.length === 0 ? (
-                        <p className="text-zinc-500">No users are currently awaiting approval.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {pendingUsers.map(pUser => (
-                                <div key={pUser.email} className="flex justify-between items-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-                                    <div>
-                                        <p className="font-semibold">{pUser.username}</p>
-                                        <p className="text-sm text-zinc-500">{pUser.email}</p>
-                                        <p className="text-xs text-zinc-400">Signed up: {new Date(pUser.createdAt).toLocaleString()}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                        <h2 className="text-xl font-semibold mb-4">Pending Approvals</h2>
+                        {loading ? (
+                            <div className="flex items-center justify-center p-8">
+                                <Spinner />
+                                <span className="ml-2">Loading users...</span>
+                            </div>
+                        ) : error ? (
+                            <p className="text-red-500">{error}</p>
+                        ) : pendingUsers.length === 0 ? (
+                            <p className="text-zinc-500">No users are currently awaiting approval.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {pendingUsers.map(pUser => (
+                                    <div key={pUser.email} className="flex justify-between items-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                                        <div>
+                                            <p className="font-semibold">{pUser.username}</p>
+                                            <p className="text-sm text-zinc-500">{pUser.email}</p>
+                                            <p className="text-xs text-zinc-400">Signed up: {new Date(pUser.createdAt).toLocaleString()}</p>
+                                        </div>
+                                        <Button onClick={() => handleApprove(pUser.email)}>
+                                            Approve
+                                        </Button>
                                     </div>
-                                    <Button onClick={() => handleApprove(pUser.email)}>
-                                        Approve
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+                    <div className="space-y-6">
+                        <Card>
+                            <h2 className="text-xl font-semibold mb-2">Data Indexing</h2>
+                            <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+                                If old share links are not working, run this process to create a fast-access index for all lookboards.
+                            </p>
+                            <Button onClick={handleReindex} disabled={isIndexing}>
+                                {isIndexing && <Spinner />}
+                                {isIndexing ? 'Indexing...' : 'Re-index Share Links'}
+                            </Button>
+                        </Card>
+                        <Card>
+                            <h2 className="text-xl font-semibold mb-2">Data Migration</h2>
+                            <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+                                This will find all older looks (created before the public/private feature) and convert them to public looks assigned to the admin user. This process is safe to run multiple times.
+                            </p>
+                            <Button onClick={handleMigrate} disabled={isMigrating}>
+                                {isMigrating && <Spinner />}
+                                {isMigrating ? 'Migrating...' : 'Migrate Old Looks to Public'}
+                            </Button>
+                        </Card>
+                    </div>
+                </div>
 
-                <Card className="mt-6">
-                    <h2 className="text-xl font-semibold mb-2">Data Migration</h2>
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-                        This will find all older looks (created before the public/private feature) and convert them to public looks assigned to the admin user. This process is safe to run multiple times.
-                    </p>
-                    <Button onClick={handleMigrate} disabled={isMigrating}>
-                        {isMigrating && <Spinner />}
-                        {isMigrating ? 'Migrating...' : 'Migrate Old Looks to Public'}
-                    </Button>
-                </Card>
             </div>
         </div>
     );

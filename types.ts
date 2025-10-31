@@ -67,6 +67,7 @@ export interface Comment {
     createdAt: number;
 }
 
+// FIX: Lookboard is now a template. Feedback and comments are moved to SharedLookboardInstance.
 export interface Lookboard {
     id: number;
     publicId: string; // for sharing
@@ -77,10 +78,17 @@ export interface Lookboard {
     visibility?: 'public' | 'private';
     createdBy: string; // user email
     createdByUsername: string;
-    // Key is lookId, value is 'liked' or 'disliked'
-    feedbacks?: Record<number, 'liked' | 'disliked'>;
-    // Key is lookId, value is an array of comments
-    comments?: Record<number, Comment[]>;
+}
+
+// NEW: Represents a unique, shareable instance of a lookboard for a specific client.
+// This allows feedback to be tracked per-share, not per-board.
+export interface SharedLookboardInstance {
+    id: string; // The unique ID for the share link (e.g., /board/{id})
+    lookboardPublicId: string; // Links to the Lookboard template
+    sharedBy: string; // Email of the user who generated this specific link
+    createdAt: number;
+    feedbacks: Record<number, 'liked' | 'disliked'>;
+    comments: Record<number, Comment[]>;
 }
 
 // From LifestyleShootPage.tsx

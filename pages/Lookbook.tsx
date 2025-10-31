@@ -4,7 +4,7 @@ import * as db from '../services/dbService';
 import { Button } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
-import ShareLinkModal from '../components/ShareLinkModal';
+import ShareOptionsModal from '../components/ShareOptionsModal';
 import { PlusIcon, ShareIcon } from '../components/Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -23,8 +23,9 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
   const [activeTab, setActiveTab] = useState<'looks' | 'boards'>('looks');
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
-  const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
-  const [newlyCreatedBoard, setNewlyCreatedBoard] = useState<Lookboard | null>(null);
+  
+  const [boardToShare, setBoardToShare] = useState<Lookboard | null>(null);
+  const [isShareOptionsModalOpen, setIsShareOptionsModalOpen] = useState(false);
 
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -54,8 +55,6 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
       note,
       lookIds: Array.from(selectedLookIds),
       createdAt: Date.now(),
-      feedbacks: {},
-      comments: {},
       visibility,
       createdBy: user.email,
       createdByUsername: user.username,
@@ -64,10 +63,15 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
     const updatedLookboards = [...lookboards, newBoard];
     await onUpdateLookboards(updatedLookboards);
     
-    setNewlyCreatedBoard(newBoard);
     setIsCreateBoardModalOpen(false);
-    setIsShareLinkModalOpen(true);
     setSelectedLookIds(new Set());
+    // After creating, immediately open the share flow for the new board.
+    handleOpenShareOptions(newBoard);
+  };
+
+  const handleOpenShareOptions = (board: Lookboard) => {
+    setBoardToShare(board);
+    setIsShareOptionsModalOpen(true);
   };
 
   const handleDeleteLookboard = async (boardId: number) => {
@@ -172,7 +176,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
       {activeTab === 'boards' && (
         <div>
            <h2 className="text-2xl font-bold mb-4">Shared Boards</h2>
-           <LookboardsList lookboards={lookboards} onDelete={handleDeleteLookboard} isSaving={isSaving} />
+           <LookboardsList 
+              lookboards={lookboards} 
+              onDelete={handleDeleteLookboard} 
+              onShare={handleOpenShareOptions}
+              isSaving={isSaving} 
+            />
         </div>
       )}
 
@@ -183,11 +192,11 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
         isSubmitting={isSaving}
       />
       
-      {newlyCreatedBoard && (
-        <ShareLinkModal
-            isOpen={isShareLinkModalOpen}
-            onClose={() => setIsShareLinkModalOpen(false)}
-            board={newlyCreatedBoard}
+      {boardToShare && (
+        <ShareOptionsModal
+            isOpen={isShareOptionsModalOpen}
+            onClose={() => setIsShareOptionsModalOpen(false)}
+            board={boardToShare}
         />
       )}
 

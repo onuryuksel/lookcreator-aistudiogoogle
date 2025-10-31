@@ -48,3 +48,10 @@ export const migrateLegacyLooks = async (): Promise<{ message: string }> => {
     });
     return handleResponse(response);
 };
+
+export const reindexBoards = async (): Promise<{ message: string }> => {
+    const response = await fetch('/api/admin/reindex-boards', {
+        method: 'POST',
+    });
+    return handleResponse(response);
+};
