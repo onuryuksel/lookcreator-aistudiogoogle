@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { User } from '../../types';
+import { User } from '../types';
 import crypto from 'crypto';
 
 export default async function handler(

@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Look } from '../../types';
+import { Look } from '../types';
 
 const ADMIN_EMAIL = 'oyouksel@altayer.com';
 const ADMIN_USERNAME = 'Ounass Admin';
@@ -41,7 +41,7 @@ export default async function handler(
                     migratedCount++;
                     needsUpdate = true;
                     const migratedLook: Look = {
-                        ...look,
+                        ...(look as Look),
                         visibility: 'public',
                         createdBy: ADMIN_EMAIL,
                         createdByUsername: ADMIN_USERNAME,

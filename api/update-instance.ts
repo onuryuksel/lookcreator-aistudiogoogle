@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { SharedLookboardInstance } from '../../types';
+import { SharedLookboardInstance } from '../types';
 
 export default async function handler(
   request: NextApiRequest,
@@ -17,11 +17,14 @@ export default async function handler(
         }
 
         const instanceKey = `instance:${instanceId}`;
-        const existingInstance = await kv.get<SharedLookboardInstance>(instanceKey);
+        const existingInstanceData = await kv.get(instanceKey);
 
-        if (!existingInstance) {
+        if (!existingInstanceData) {
             return response.status(404).json({ message: 'Share link not found or has expired.' });
         }
+
+        const existingInstance: SharedLookboardInstance = typeof existingInstanceData === 'string' ? JSON.parse(existingInstanceData) : existingInstanceData as SharedLookboardInstance;
+
 
         const updatedInstance: SharedLookboardInstance = {
             ...existingInstance,
@@ -30,7 +33,7 @@ export default async function handler(
         };
         
         // Update the instance, preserving its original expiration time (TTL)
-        await kv.set(instanceKey, JSON.stringify(updatedInstance), { keepttl: true });
+        await kv.set(instanceKey, JSON.stringify(updatedInstance), { keepTtl: true });
 
         return response.status(200).json({ message: 'Feedback saved successfully.' });
 

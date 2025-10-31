@@ -34,10 +34,14 @@ export const fetchServerData = async (email: string): Promise<{ looks: Look[], l
 };
 
 export const saveOverrides = async (email: string, overrides: LookOverrides): Promise<void> => {
-    const response = await fetch('/api/overrides', {
+    const response = await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, overrides }),
+        body: JSON.stringify({
+            action: 'save-overrides', // API consolidation
+            email, 
+            overrides 
+        }),
     });
     await handleApiResponse(response);
 };
@@ -78,19 +82,33 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
 };
 
 const sendChunk = async (email: string, importId: string, chunkIndex: number, totalChunks: number, chunkType: 'looks' | 'lookboards', data: any[]) => {
-    const response = await fetch('/api/data-chunk', {
+    const response = await fetch('/api/data', { // API consolidation
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, importId, chunkIndex, totalChunks, chunkType, data }),
+        body: JSON.stringify({ 
+            action: 'save-chunk', // API consolidation
+            email, 
+            importId, 
+            chunkIndex, 
+            totalChunks, 
+            chunkType, 
+            data 
+        }),
     });
     return handleApiResponse(response);
 };
 
 const commitChunks = async (email: string, importId: string, chunkCounts: { looks: number, lookboards: number }, overrides: LookOverrides) => {
-    const response = await fetch('/api/data-commit', {
+    const response = await fetch('/api/data', { // API consolidation
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, importId, chunkCounts, overrides }),
+        body: JSON.stringify({ 
+            action: 'commit-chunks', // API consolidation
+            email, 
+            importId, 
+            chunkCounts, 
+            overrides 
+        }),
     });
     return handleApiResponse(response);
 };
