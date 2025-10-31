@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/overrides", "destination": "/api/overrides" },
     { "source": "/((?!api/).*)", "destination": "/" }
   ]
 }
