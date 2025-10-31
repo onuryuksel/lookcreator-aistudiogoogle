@@ -32,6 +32,7 @@ const CreatorStudio: React.FC = () => {
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isMigrating, setIsMigrating] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
 
 
     // Creator view state
@@ -444,20 +445,48 @@ const CreatorStudio: React.FC = () => {
 
             const reader = new FileReader();
             reader.onload = async (event) => {
+                setIsImporting(true);
                 try {
-                    const data = JSON.parse(event.target?.result as string);
-                    if (data.models && data.looks && data.lookboards) {
-                        // Import models locally, and looks/lookboards to the server
-                        await db.saveModels(data.models);
-                        await dataService.saveServerData(user.email, data.looks, data.lookboards);
+                    const importedData = JSON.parse(event.target?.result as string);
+                    if (importedData.models && importedData.looks && importedData.lookboards) {
+                        
+                        // Merge Models (local)
+                        const existingModels = await db.getModels();
+                        const combinedModelsMap = new Map<number, Model>();
+                        existingModels.forEach(model => combinedModelsMap.set(model.id, model));
+                        importedData.models.forEach((model: Model) => combinedModelsMap.set(model.id, model));
+                        const mergedModels = Array.from(combinedModelsMap.values());
+
+                        // Merge Looks (server)
+                        const existingLooks = looks; // from component state
+                        const combinedLooksMap = new Map<number, Look>();
+                        existingLooks.forEach(look => combinedLooksMap.set(look.id, look));
+                        importedData.looks.forEach((look: Look) => combinedLooksMap.set(look.id, look));
+                        const mergedLooks = Array.from(combinedLooksMap.values());
+
+                        // Merge Lookboards (server)
+                        const existingLookboards = lookboards; // from component state
+                        const combinedLookboardsMap = new Map<number, Lookboard>();
+                        existingLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
+                        importedData.lookboards.forEach((board: Lookboard) => combinedLookboardsMap.set(board.id, board));
+                        const mergedLookboards = Array.from(combinedLookboardsMap.values());
+
+                        // Save merged data to server using chunking for large files
+                        await dataService.saveLargeData(user.email, mergedModels, mergedLooks, mergedLookboards);
+                        
+                        // Local models are saved directly, not via server.
+                        await db.saveModels(mergedModels);
+
                         await loadData(); // Reload all data into the app state
-                        showToast('Data imported successfully!', 'success');
+                        showToast('Data successfully merged and imported!', 'success');
                     } else {
-                        throw new Error('Invalid backup file format.');
+                        throw new Error('Invalid backup file format. Expected keys: models, looks, lookboards.');
                     }
                 } catch (error) {
                     console.error('Failed to import data:', error);
                     showToast(error instanceof Error ? error.message : 'Failed to import data.', 'error');
+                } finally {
+                    setIsImporting(false);
                 }
             };
             reader.readAsText(file);
@@ -513,8 +542,8 @@ const CreatorStudio: React.FC = () => {
                     <DropdownItem onClick={handleExportData}>
                         <DownloadIcon /> Export All Data
                     </DropdownItem>
-                    <DropdownItem onClick={handleImportData}>
-                        <UploadIcon /> Import Data
+                    <DropdownItem onClick={handleImportData} disabled={isImporting}>
+                        {isImporting ? <Spinner /> : <UploadIcon />} {isImporting ? 'Importing...' : 'Import Data'}
                     </DropdownItem>
                     <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
                         <TrashIcon /> Clear All Data
@@ -531,6 +560,10 @@ const CreatorStudio: React.FC = () => {
     const renderView = () => {
         if (isLoading) {
             return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Loading your studio...</span></div>;
+        }
+        
+        if (isImporting) {
+             return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Importing data... This may take a moment.</span></div>;
         }
 
         switch (view) {
