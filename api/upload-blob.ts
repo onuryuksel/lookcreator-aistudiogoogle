@@ -23,6 +23,9 @@ export default async function handler(
           tokenPayload: JSON.stringify({
             // Pass custom metadata to the onUploadCompleted callback
           }),
+          // Add a random suffix to the filename to prevent overwriting existing files.
+          // This is the correct server-side configuration.
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
