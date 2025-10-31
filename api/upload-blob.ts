@@ -1,15 +1,22 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { handleUpload } from '@vercel/blob/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
+
+// By adding this config, we disable the default Vercel body parser for this route.
+// This is crucial because the Vercel Blob client needs to handle the raw request stream.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export default async function handler(
   request: NextApiRequest,
   response: NextApiResponse,
 ) {
-  const body = request.body as HandleUploadBody;
-
   try {
+    // The `handleUpload` function from `@vercel/blob/client` needs the raw `request`
+    // object to process the file stream. The incorrect `body: request` line has been removed.
     const jsonResponse = await handleUpload({
-      body,
       request,
       onBeforeGenerateToken: async (pathname: string) => {
         return {
@@ -29,6 +36,7 @@ export default async function handler(
     return response.status(200).json(jsonResponse);
   } catch (error) {
     console.error('Error in blob upload handler:', error);
+    // The error is already an object with a message property, so we can pass it directly
     return response.status(400).json({ error: (error as Error).message });
   }
 }
