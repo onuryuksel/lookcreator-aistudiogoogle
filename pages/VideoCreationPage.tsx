@@ -5,6 +5,7 @@ import { base64toBlob } from '../utils';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
 import { generateVideo, generateVideoDirectorPrompt } from '../services/videoCreationService';
+import { changeImageAspectRatio } from '../services/directImageEditingService';
 import ImageViewer from '../components/ImageViewer';
 import { useToast } from '../contexts/ToastContext';
 
@@ -16,6 +17,16 @@ interface VideoCreationPageProps {
 }
 
 type PageStep = 'input' | 'review' | 'result';
+
+const getImageDimensions = (url: string): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous"; 
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = (err) => reject(err);
+        img.src = url;
+    });
+};
 
 const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onSave, isSaving }) => {
   const [step, setStep] = useState<PageStep>('input');
@@ -57,25 +68,58 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
 
   const handleGenerateVideo = async () => {
     setIsGenerating(true);
-    setLoadingMessage('Initializing video generation with Veo... This can take a few minutes.');
     setError(null);
+
+    let conformedStartImage = startImage;
+    let conformedEndImage = endImage;
+    const targetRatioValue = aspectRatio === '16:9' ? 16 / 9 : 9 / 16;
+
     try {
-      // The service returns base64, which we need to upload
-      const videoBase64 = await generateVideo(directorPrompt, startImage, endImage, aspectRatio, durationSeconds);
-      const videoBlob = await base64toBlob(videoBase64, 'video/mp4');
-      const videoUrl = await blobService.uploadFile(videoBlob, 'video.mp4');
-      setGeneratedVideo(videoUrl);
-      setStep('result');
+        // --- START: Aspect Ratio Conformance ---
+        setLoadingMessage('Checking image aspect ratios...');
+        
+        // Check Start Image
+        const startDims = await getImageDimensions(startImage);
+        const startRatioValue = startDims.width / startDims.height;
+        if (Math.abs(startRatioValue - targetRatioValue) > 0.05) { // Using a tolerance
+            showToast(`Start image aspect ratio doesn't match. Conforming to ${aspectRatio}...`, 'success');
+            setLoadingMessage(`AI is conforming start image to ${aspectRatio}...`);
+            const correctedBase64 = await changeImageAspectRatio(startImage, aspectRatio);
+            const correctedBlob = await base64toBlob(correctedBase64);
+            conformedStartImage = await blobService.uploadFile(correctedBlob, `conformed-start-${Date.now()}.png`);
+        }
+
+        // Check End Image
+        if (endImage) {
+            const endDims = await getImageDimensions(endImage);
+            const endRatioValue = endDims.width / endDims.height;
+            if (Math.abs(endRatioValue - targetRatioValue) > 0.05) {
+                showToast(`End image aspect ratio doesn't match. Conforming to ${aspectRatio}...`, 'success');
+                setLoadingMessage(`AI is conforming end image to ${aspectRatio}...`);
+                const correctedBase64 = await changeImageAspectRatio(endImage, aspectRatio);
+                const correctedBlob = await base64toBlob(correctedBase64);
+                conformedEndImage = await blobService.uploadFile(correctedBlob, `conformed-end-${Date.now()}.png`);
+            }
+        }
+        // --- END: Aspect Ratio Conformance ---
+
+
+        setLoadingMessage('Initializing video generation with Veo... This can take a few minutes.');
+        const videoBase64 = await generateVideo(directorPrompt, conformedStartImage, conformedEndImage, aspectRatio, durationSeconds);
+        const videoBlob = await base64toBlob(videoBase64, 'video/mp4');
+        const videoUrl = await blobService.uploadFile(videoBlob, 'video.mp4');
+        setGeneratedVideo(videoUrl);
+        setStep('result');
     } catch (err) {
-      console.error("Error generating video:", err);
-      if (err instanceof Error && err.message === 'API_KEY_INVALID') {
-        setError("Your API key is invalid or requires billing to be enabled. Please check your Vercel environment variables.");
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to generate video.');
-      }
+        console.error("Error generating video:", err);
+        if (err instanceof Error && err.message === 'API_KEY_INVALID') {
+            setError("Your API key is invalid or requires billing to be enabled. Please check your Vercel environment variables.");
+        } else {
+            setError(err instanceof Error ? err.message : 'Failed to generate video.');
+        }
     } finally {
-      setIsGenerating(false);
-      setLoadingMessage('');
+        setIsGenerating(false);
+        setLoadingMessage('');
     }
   };
 

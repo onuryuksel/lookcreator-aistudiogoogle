@@ -22,15 +22,6 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
   const [newlyCreatedBoard, setNewlyCreatedBoard] = useState<Lookboard | null>(null);
-  const [itemSpans, setItemSpans] = useState<Record<number, string>>({});
-
-  const handleAssetLoad = (id: number, width: number, height: number) => {
-    // A threshold of 1.2 means it's clearly landscape.
-    if (width / height > 1.2) {
-      // Apply column span on medium screens and up to avoid single-column layouts getting too wide.
-      setItemSpans(prev => ({ ...prev, [id]: 'md:col-span-2' }));
-    }
-  };
 
   const handleToggleLookSelection = (lookId: number) => {
     setSelectedLookIds(prev => {
@@ -109,10 +100,10 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
               </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 items-start">
+          <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-4 space-y-4">
             <div
               onClick={onGoToCreator}
-              className="group cursor-pointer col-span-1"
+              className="group cursor-pointer break-inside-avoid"
             >
               <div className="w-full aspect-[3/4] bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-800/50 rounded-lg flex items-center justify-center border border-zinc-200 dark:border-zinc-800 shadow-md transition-all duration-300 ease-in-out hover:shadow-lg hover:scale-105 hover:border-zinc-300 dark:hover:border-zinc-700">
                 <div className="text-center text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors">
@@ -124,11 +115,10 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
 
             {looks.map(look => {
               const isVideo = look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4');
-              const spanClass = itemSpans[look.id] || 'col-span-1';
               return (
               <div 
                 key={look.id} 
-                className={`relative group cursor-pointer ${spanClass}`}
+                className="relative group cursor-pointer break-inside-avoid"
                 onClick={() => onSelectLook(look)}
               >
                 {isVideo ? (
@@ -139,14 +129,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
                       autoPlay
                       loop
                       playsInline
-                      onLoadedMetadata={(e) => handleAssetLoad(look.id, e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
                     />
                 ) : (
                   <img 
                     src={look.finalImage} 
                     alt={`Look ${look.id}`} 
                     className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80 block"
-                    onLoad={(e) => handleAssetLoad(look.id, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
                   />
                 )}
                 <div 
