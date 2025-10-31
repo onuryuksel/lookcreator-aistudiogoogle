@@ -10,9 +10,10 @@ interface AspectRatioModalProps {
     onClose: () => void;
     look: Look;
     onSaveVariation: (newImage: string) => void;
+    isProcessing: boolean;
 }
 
-const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, look, onSaveVariation }) => {
+const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, look, onSaveVariation, isProcessing }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,6 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
         }
     };
 
-    // Reset state on close
     const handleClose = () => {
         setGeneratedImage(null);
         setError(null);
@@ -53,20 +53,18 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
     return (
         <Modal isOpen={isOpen} onClose={handleClose} title="Change Image Aspect Ratio">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left: Image Preview */}
                 <div className="relative w-full aspect-auto bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 flex items-center justify-center min-h-[400px]">
                     <img src={displayImage} alt="Aspect Ratio Preview" className="max-w-full max-h-full object-contain" />
-                    {isGenerating && (
+                    {(isGenerating || isProcessing) && (
                         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center backdrop-blur-sm p-4 text-center">
                             <Spinner />
                             <p className="text-white mt-2 font-semibold">
-                                Generating {selectedRatio} ratio...
+                                {isProcessing ? 'Saving...' : `Generating ${selectedRatio} ratio...`}
                             </p>
                         </div>
                     )}
                 </div>
 
-                {/* Right: Controls */}
                 <div className="flex flex-col">
                     <h3 className="font-semibold mb-2">Select a new aspect ratio:</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
@@ -75,7 +73,7 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
                                 key={ratio.value}
                                 variant="secondary"
                                 onClick={() => handleGenerate(ratio.value)}
-                                disabled={isGenerating}
+                                disabled={isGenerating || isProcessing}
                                 className={`justify-center ${selectedRatio === ratio.value && isGenerating ? 'ring-2 ring-zinc-500' : ''}`}
                             >
                                 {ratio.value}
@@ -91,8 +89,8 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
                     )}
 
                     <div className="mt-auto flex justify-end gap-3">
-                        <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-                        <Button onClick={handleSave} disabled={!generatedImage || isGenerating}>
+                        <Button variant="secondary" onClick={handleClose} disabled={isProcessing}>Cancel</Button>
+                        <Button onClick={handleSave} disabled={!generatedImage || isGenerating || isProcessing}>
                             <SaveIcon /> Save as Variation
                         </Button>
                     </div>

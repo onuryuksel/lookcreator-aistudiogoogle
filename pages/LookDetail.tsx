@@ -1,12 +1,13 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Look } from '../types';
+import * as blobService from '../services/blobService';
+import { base64toBlob } from '../utils';
 import ProductCard from '../components/ProductCard';
 import { Button, Card, Dropdown, DropdownItem } from '../components/common';
 import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon } from '../components/Icons';
 import AspectRatioModal from '../components/AspectRatioModal';
 import ImageViewer from '../components/ImageViewer';
+import { useToast } from '../contexts/ToastContext';
 
 interface LookDetailProps {
   look: Look;
@@ -22,6 +23,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const [selectedImage, setSelectedImage] = useState(look.finalImage);
   const productsScrollContainerRef = useRef<HTMLDivElement>(null);
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useToast();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
   const [showProductRightArrow, setShowProductRightArrow] = useState(false);
@@ -29,14 +32,11 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const [showVariationRightArrow, setShowVariationRightArrow] = useState(false);
   const [isAspectRatioModalOpen, setIsAspectRatioModalOpen] = useState(false);
 
-  // A memoized, unique list of all image URLs for this look.
   const allImages = useMemo(() => {
     return [...new Set([look.finalImage, ...(look.variations || [])])].filter(Boolean);
   }, [look.finalImage, look.variations]);
 
   useEffect(() => {
-    // When the look prop changes (e.g., after setting a new main image),
-    // reset the selected image to the new finalImage to keep UI in sync.
     setSelectedImage(look.finalImage);
   }, [look.finalImage]);
 
@@ -55,30 +55,35 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     }
   };
 
-  const handleSaveNewVariation = (newImage: string) => {
-    const updatedLook: Look = {
-        ...look,
-        variations: [...new Set([...(look.variations || []), newImage])],
-    };
-    onUpdate(updatedLook);
-    setIsAspectRatioModalOpen(false); // Close modal on save
+  const handleSaveNewVariation = async (base64Image: string) => {
+    setIsProcessing(true);
+    try {
+        const imageBlob = await base64toBlob(base64Image);
+        const imageUrl = await blobService.uploadFile(imageBlob);
+
+        const updatedLook: Look = {
+            ...look,
+            variations: [...new Set([...(look.variations || []), imageUrl])],
+        };
+        onUpdate(updatedLook);
+        showToast("New variation saved!", "success");
+    } catch (error) {
+        console.error("Failed to save new variation:", error);
+        showToast("Failed to save variation.", "error");
+    } finally {
+        setIsProcessing(false);
+        setIsAspectRatioModalOpen(false);
+    }
   };
 
     const handleDeleteVariation = (imageToDelete: string) => {
-        // Prevent deleting the last image.
         if (allImages.length <= 1) {
-            alert("You cannot delete the last image of a look.");
+            showToast("You cannot delete the last image of a look.", "error");
             return;
         }
 
-        // No confirmation dialog, as requested by the user.
         const remainingImages = allImages.filter(img => img !== imageToDelete);
-        
-        // The first image in the remaining list becomes the new main image.
-        // This naturally handles promotion if the original main image was deleted.
         const newFinalImage = remainingImages[0];
-
-        // All other images become the variations.
         const newVariations = remainingImages.slice(1);
 
         const updatedLook: Look = {
@@ -87,12 +92,12 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             variations: newVariations,
         };
 
-        // If the currently viewed image was the one deleted, switch the view to the new main image.
         if (selectedImage === imageToDelete) {
             setSelectedImage(newFinalImage);
         }
         
         onUpdate(updatedLook);
+        showToast("Variation deleted.", "success");
     };
   
   const handleProductScroll = () => {
@@ -134,7 +139,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   };
   
   useEffect(() => {
-    handleProductScroll(); // Initial check
+    handleProductScroll();
     const container = productsScrollContainerRef.current;
     if (container) {
       container.addEventListener('scroll', handleProductScroll);
@@ -162,7 +167,6 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
 
   return (
     <div>
-      {/* --- START: Header Bar --- */}
       <div className="flex justify-between items-center mb-6">
         <Button onClick={onBack} variant="secondary">
           <ChevronLeftIcon /> Back to Lookbook
@@ -195,11 +199,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             </DropdownItem>
         </Dropdown>
       </div>
-      {/* --- END: Header Bar --- */}
 
-      {/* --- START: Main Content Grid --- */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* --- START: Left Column (Image) --- */}
         <div className="lg:col-span-2">
           <div className="sticky top-24">
             <div className="aspect-[3/4] relative">
@@ -215,10 +216,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             </div>
           </div>
         </div>
-        {/* --- END: Left Column --- */}
 
 
-        {/* --- START: Right Column (Products & Variations) --- */}
         <div className="lg:col-span-3 flex flex-col gap-8">
             <Card>
                 <h3 className="text-lg font-bold mb-4">Products in this Look ({look.products.length})</h3>
@@ -241,7 +240,6 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                 </div>
             </Card>
 
-            {/* Variations are now inside the right column */}
             {allImages.length > 1 && (
               <Card className="flex-grow flex flex-col">
                 <h3 className="text-lg font-bold mb-4 flex-shrink-0">Variations ({allImages.length})</h3>
@@ -253,7 +251,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                   )}
                   <div ref={variationsScrollContainerRef} className="flex w-full gap-4 overflow-x-auto p-2 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
                     {allImages.map((img, index) => {
-                      const isVideo = img.startsWith('data:video/');
+                      const isVideo = img.includes('.mp4');
                       return (
                       <div
                         key={index}
@@ -294,7 +292,6 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
               </Card>
             )}
         </div>
-        {/* --- END: Right Column --- */}
       </div>
       
       {isAspectRatioModalOpen && (
@@ -303,6 +300,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             onClose={() => setIsAspectRatioModalOpen(false)}
             look={look}
             onSaveVariation={handleSaveNewVariation}
+            isProcessing={isProcessing}
         />
        )}
     </div>

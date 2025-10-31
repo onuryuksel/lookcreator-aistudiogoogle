@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Look } from '../types';
+import * as blobService from '../services/blobService';
+import { base64toBlob } from '../utils';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
 import { generateVideo, generateVideoDirectorPrompt } from '../services/videoCreationService';
 import ImageViewer from '../components/ImageViewer';
+import { useToast } from '../contexts/ToastContext';
 
 interface VideoCreationPageProps {
   look: Look;
@@ -16,23 +19,22 @@ type PageStep = 'input' | 'review' | 'result';
 const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onSave }) => {
   const [step, setStep] = useState<PageStep>('input');
   
-  // Inputs
   const [startImage, setStartImage] = useState<string>(look.finalImage);
   const [endImage, setEndImage] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [durationSeconds, setDurationSeconds] = useState<number>(4);
 
-  // AI & Generation State
   const [directorPrompt, setDirectorPrompt] = useState<string>('');
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyReady, setIsApiKeyReady] = useState(false);
+  const { showToast } = useToast();
 
   const allImages = useMemo(() => {
     return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
-      (asset) => asset && !asset.startsWith('data:video/')
+      (asset) => asset && !asset.startsWith('data:video/') && !asset.includes('.mp4') // Filter out videos
     );
   }, [look.finalImage, look.variations]);
 
@@ -72,11 +74,14 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
 
   const handleGenerateVideo = async () => {
     setIsGenerating(true);
-    setLoadingMessage('Initializing video generation with Veo...');
+    setLoadingMessage('Initializing video generation with Veo... This can take a few minutes.');
     setError(null);
     try {
-      const video = await generateVideo(directorPrompt, startImage, endImage, aspectRatio, durationSeconds);
-      setGeneratedVideo(video);
+      // The service returns base64, which we need to upload
+      const videoBase64 = await generateVideo(directorPrompt, startImage, endImage, aspectRatio, durationSeconds);
+      const videoBlob = await base64toBlob(videoBase64, 'video/mp4');
+      const videoUrl = await blobService.uploadFile(videoBlob, 'video.mp4');
+      setGeneratedVideo(videoUrl);
       setStep('result');
     } catch (err) {
       console.error("Error generating video:", err);
@@ -99,11 +104,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
         variations: [...new Set([...(look.variations || []), generatedVideo])],
       };
       onSave(updatedLook);
+      showToast("Video saved as a new variation.", "success");
     } else {
       onBack();
     }
   };
-
+  
   const renderContent = () => {
     switch (step) {
       case 'input':

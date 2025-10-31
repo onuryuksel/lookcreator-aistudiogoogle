@@ -52,8 +52,8 @@ export interface Look {
   id: number;
   model: Model;
   products: OunassSKU[];
-  finalImage: string; // The main image for the look
-  variations: string[]; // Other generated images
+  finalImage: string; // The main image for the look - now a URL
+  variations: string[]; // Other generated images - now URLs
   createdAt: number; // timestamp
 }
 

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { Look, LifestyleShootUserInput, ArtDirectorPrompt } from '../types';
+import * as blobService from '../services/blobService';
+import { base64toBlob } from '../utils';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
 import { generateArtDirectorPrompt, generateLifestyleImage, generateArtDirectorPromptFromImage } from '../services/lifestyleShootService';
 import { ASPECT_RATIOS } from '../constants';
 import ImageViewer from '../components/ImageViewer';
+import { useToast } from '../contexts/ToastContext';
 
 // --- START: Lifestyle Shoot Page Constants ---
 const VISUAL_STYLES = {
@@ -52,6 +55,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -93,12 +97,15 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
     setIsGeneratingImage(true);
     setError(null);
     try {
-        const image = await generateLifestyleImage(
+        const imageBase64 = await generateLifestyleImage(
             look.finalImage,
             artDirectorPrompt,
             aspectRatio,
         );
-        setGeneratedImage(image);
+        // We get base64 back, but need to display a URL
+        const imageBlob = await base64toBlob(imageBase64);
+        const imageUrl = await blobService.uploadFile(imageBlob);
+        setGeneratedImage(imageUrl);
         setStep('result');
     } catch (err) {
         console.error("Error generating lifestyle image:", err);
@@ -115,6 +122,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
             variations: [...new Set([...(look.variations || []), generatedImage])],
         };
         onSave(updatedLook);
+        showToast("Lifestyle shoot saved as a new variation.", "success");
     } else {
         onBack();
     }
@@ -228,7 +236,6 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
             )}
         </div>
         <div className="flex flex-col lg:flex-row gap-8">
-            {/* Left Panel: Controls */}
             <div className="lg:w-1/2">
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
                     {renderContent()}
@@ -253,7 +260,6 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
                 </div>
             </div>
 
-            {/* Right Panel: Image Viewer */}
             <div className="lg:w-1/2">
                 <div className="sticky top-24">
                      <div className="aspect-[3/4]">

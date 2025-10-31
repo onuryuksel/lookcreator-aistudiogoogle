@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Model, OunassSKU, TryOnStep, Look, Lookboard } from '../types';
 import * as db from '../services/dbService';
 import * as dataService from '../services/dataService';
+import * as blobService from '../services/blobService';
 import * as ounassService from '../services/ounassService';
 import { generateModelFromForm, generateModelFromPhoto } from '../services/modelGenerationService';
 import { performVirtualTryOn } from '../services/virtualTryOnService';
+import { base64toBlob } from '../utils';
 
 import ModelPanel from '../components/ModelPanel';
 import CreatorPanel from '../components/CreatorPanel';
@@ -59,13 +61,15 @@ const CreatorStudio: React.FC = () => {
 
 
     // --- Data Persistence ---
-    const saveAllDataToServer = useCallback(async (updatedLooks: Look[], updatedLookboards: Lookboard[]) => {
+    const saveAllData = useCallback(async (updatedModels: Model[], updatedLooks: Look[], updatedLookboards: Lookboard[]) => {
         if (!user) return;
         try {
-            await dataService.saveServerData(user.email, updatedLooks, updatedLookboards);
+            await dataService.saveLargeData(user.email, updatedModels, updatedLooks, updatedLookboards);
+            // Models are also saved locally
+            await db.saveModels(updatedModels);
             showToast('Changes saved to cloud.', 'success');
         } catch (error) {
-            console.error('Failed to save data to server:', error);
+            console.error('Failed to save data:', error);
             showToast('Failed to save changes to the cloud.', 'error');
         }
     }, [user, showToast]);
@@ -281,26 +285,47 @@ const CreatorStudio: React.FC = () => {
     const handleSaveLook = async () => {
         const selectedModel = models.find(m => m.id === selectedModelId);
         if (!finalLookImage || !selectedModel) {
-            setError("Cannot save look. Final image or model is missing.");
+            showToast("Cannot save look. Final image or model is missing.", "error");
             return;
         }
-
-        const newLook: Look = {
-            id: db.generateId(),
-            model: selectedModel,
-            products: tryOnSteps.map(step => step.sku),
-            finalImage: finalLookImage,
-            variations: [],
-            createdAt: Date.now()
-        };
-
-        const updatedLooks = [...looks, newLook];
-        setLooks(updatedLooks);
-        await saveAllDataToServer(updatedLooks, lookboards);
-
-        // Reset for next creation
-        setTryOnSteps([]);
-        setFinalLookImage(null);
+    
+        setIsGenerating(true); // Reuse isGenerating for saving state
+        setError(null);
+    
+        try {
+            // 1. Convert base64 to Blob
+            const imageBlob = await base64toBlob(finalLookImage);
+    
+            // 2. Upload Blob and get URL
+            const imageUrl = await blobService.uploadFile(imageBlob);
+    
+            // 3. Create new Look with URL
+            const newLook: Look = {
+                id: db.generateId(),
+                model: selectedModel,
+                products: tryOnSteps.map(step => step.sku),
+                finalImage: imageUrl,
+                variations: [],
+                createdAt: Date.now()
+            };
+    
+            // 4. Update state and save to server
+            const updatedLooks = [...looks, newLook];
+            setLooks(updatedLooks);
+            await saveAllData(models, updatedLooks, lookboards);
+            showToast("Look saved successfully!", "success");
+    
+            // 5. Reset for next creation
+            setTryOnSteps([]);
+            setFinalLookImage(null);
+    
+        } catch (err) {
+            console.error("Error saving look:", err);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred while saving.');
+            showToast("Failed to save look.", "error");
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
 
@@ -319,7 +344,7 @@ const CreatorStudio: React.FC = () => {
     const handleUpdateLook = async (updatedLook: Look) => {
         const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
         setLooks(updatedLooks);
-        await saveAllDataToServer(updatedLooks, lookboards);
+        await saveAllData(models, updatedLooks, lookboards);
         if (activeLook && activeLook.id === updatedLook.id) {
             setActiveLook(updatedLook);
         }
@@ -328,7 +353,7 @@ const CreatorStudio: React.FC = () => {
     const handleDeleteLook = async (id: number) => {
         const updatedLooks = looks.filter(l => l.id !== id);
         setLooks(updatedLooks);
-        await saveAllDataToServer(updatedLooks, lookboards);
+        await saveAllData(models, updatedLooks, lookboards);
         setView('lookbook');
         setActiveLook(null);
     };
@@ -336,7 +361,7 @@ const CreatorStudio: React.FC = () => {
     // --- Lookboards Management ---
     const handleUpdateLookboards = async (boards: Lookboard[]) => {
         setLookboards(boards);
-        await saveAllDataToServer(looks, boards);
+        await saveAllData(models, looks, boards);
     };
 
     const selectedModel = models.find(m => m.id === selectedModelId);
@@ -356,13 +381,9 @@ const CreatorStudio: React.FC = () => {
             return;
         }
     
-        // The `looks` and `lookboards` in state are the current data from the server.
         const serverLooks = looks;
         const serverLookboards = lookboards;
     
-        // Merge local data with server data, preventing duplicates.
-        // A Map is used to ensure unique IDs. If an ID exists in both local and server,
-        // the local one will overwrite the server one, which is reasonable for a migration.
         const combinedLooksMap = new Map<number, Look>();
         serverLooks.forEach(look => combinedLooksMap.set(look.id, look));
         localLooks.forEach(look => combinedLooksMap.set(look.id, look));
@@ -373,7 +394,6 @@ const CreatorStudio: React.FC = () => {
         localLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
         const mergedLookboards = Array.from(combinedLookboardsMap.values());
         
-        // Check if there's actually anything new to add.
         const newLooksCount = mergedLooks.length - serverLooks.length;
         const newBoardsCount = mergedLookboards.length - serverLookboards.length;
         
@@ -387,15 +407,12 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm(`This will merge your ${localLooks.length} local look(s) and ${localLookboards.length} local board(s) with your cloud account. Continue?`)) {
             setIsMigrating(true);
             try {
-                // Save the *merged* data back to the server.
-                await dataService.saveServerData(user.email, mergedLooks, mergedLookboards);
+                await saveAllData(models, mergedLooks, mergedLookboards);
                 showToast('Data successfully synced to your account!', 'success');
                 
-                // Clear local data now that it's been migrated.
                 await db.clearLooks();
                 await db.clearLookboards();
                 
-                // Reload data from server to update the UI with the merged data.
                 await loadData();
             } catch (error) {
                 console.error('Failed to migrate data:', error);
@@ -410,8 +427,8 @@ const CreatorStudio: React.FC = () => {
         try {
             const dataToExport = {
                 models: await db.getModels(),
-                looks: looks, // Export from state (server data)
-                lookboards: lookboards, // Export from state (server data)
+                looks: looks,
+                lookboards: lookboards,
             };
             const jsonString = JSON.stringify(dataToExport, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
@@ -450,34 +467,27 @@ const CreatorStudio: React.FC = () => {
                     const importedData = JSON.parse(event.target?.result as string);
                     if (importedData.models && importedData.looks && importedData.lookboards) {
                         
-                        // Merge Models (local)
                         const existingModels = await db.getModels();
                         const combinedModelsMap = new Map<number, Model>();
                         existingModels.forEach(model => combinedModelsMap.set(model.id, model));
                         importedData.models.forEach((model: Model) => combinedModelsMap.set(model.id, model));
                         const mergedModels = Array.from(combinedModelsMap.values());
 
-                        // Merge Looks (server)
-                        const existingLooks = looks; // from component state
+                        const existingLooks = looks;
                         const combinedLooksMap = new Map<number, Look>();
                         existingLooks.forEach(look => combinedLooksMap.set(look.id, look));
                         importedData.looks.forEach((look: Look) => combinedLooksMap.set(look.id, look));
                         const mergedLooks = Array.from(combinedLooksMap.values());
 
-                        // Merge Lookboards (server)
-                        const existingLookboards = lookboards; // from component state
+                        const existingLookboards = lookboards;
                         const combinedLookboardsMap = new Map<number, Lookboard>();
                         existingLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
                         importedData.lookboards.forEach((board: Lookboard) => combinedLookboardsMap.set(board.id, board));
                         const mergedLookboards = Array.from(combinedLookboardsMap.values());
 
-                        // Save merged data to server using chunking for large files
-                        await dataService.saveLargeData(user.email, mergedModels, mergedLooks, mergedLookboards);
+                        await saveAllData(mergedModels, mergedLooks, mergedLookboards);
                         
-                        // Local models are saved directly, not via server.
-                        await db.saveModels(mergedModels);
-
-                        await loadData(); // Reload all data into the app state
+                        await loadData();
                         showToast('Data successfully merged and imported!', 'success');
                     } else {
                         throw new Error('Invalid backup file format. Expected keys: models, looks, lookboards.');
@@ -502,8 +512,8 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm('Are you sure you want to delete ALL your data (local models, and all cloud looks/boards)? This action cannot be undone.')) {
             try {
                 await db.clearModels();
-                await dataService.saveServerData(user.email, [], []);
-                await loadData(); // Reload to show empty state
+                await saveAllData([], [], []);
+                await loadData();
                 showToast('All data has been cleared.', 'success');
             } catch (error) {
                 console.error('Failed to clear data:', error);

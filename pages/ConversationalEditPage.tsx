@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Look } from '../types';
+import * as blobService from '../services/blobService';
+import { base64toBlob } from '../utils';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon, PlusIcon, XIcon } from '../components/Icons';
 import { editImageWithPrompt, editImageWithImageAndPrompt } from '../services/directImageEditingService';
 import ImageViewer from '../components/ImageViewer';
+import { useToast } from '../contexts/ToastContext';
 
 interface ConversationalEditPageProps {
   look: Look;
@@ -39,9 +42,9 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
-    // Scroll to the bottom of the chat history when it updates
     if (chatHistoryRef.current) {
         chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
@@ -64,20 +67,24 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
     setError(null);
     
     try {
-      const newImage = uploadedFile
+      // The editing service still returns base64, which is fine for the conversation flow.
+      const newImageBase64 = uploadedFile
         ? await editImageWithImageAndPrompt(latestImage, uploadedFile, prompt)
         : await editImageWithPrompt(latestImage, prompt);
 
+      // We need to upload this new base64 to get a permanent URL for display and state management.
+      const imageBlob = await base64toBlob(newImageBase64);
+      const imageUrl = await blobService.uploadFile(imageBlob);
+
       const newTurn: ConversationTurn = {
         prompt: prompt,
-        responseImage: newImage,
+        responseImage: imageUrl, // Use the URL
         uploadedImagePreview: uploadedFilePreview || undefined,
       };
 
       setConversation(prev => [...prev, newTurn]);
-      setLatestImage(newImage);
+      setLatestImage(imageUrl); // Update the main view with the URL
       
-      // Reset inputs
       setPrompt('');
       setUploadedFile(null);
       setUploadedFilePreview(null);
@@ -99,6 +106,7 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
             variations: [...new Set([...(look.variations || []), latestImage])],
         };
         onSave(updatedLook);
+        showToast("Edit saved as a new variation.", "success");
     } else {
         onBack();
     }
@@ -106,7 +114,6 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
   
   return (
     <div className="flex flex-col lg:flex-row gap-8 h-[calc(100vh-10rem)]">
-      {/* Left Panel: Chat & Controls */}
       <div className="lg:w-1/3 flex flex-col h-full">
          <div className="flex justify-between items-center mb-4 flex-shrink-0">
             <Button onClick={onBack} variant="secondary">
@@ -122,7 +129,6 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                 Describe your edit. You can also add an image to guide the AI.
             </p>
             
-            {/* Chat History */}
             <div ref={chatHistoryRef} className="flex-grow overflow-y-auto space-y-4 pr-2 -mr-2 mb-4">
                 {conversation.map((turn, index) => (
                     <div key={index} className="flex flex-col items-start">
@@ -135,7 +141,6 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                 ))}
             </div>
 
-            {/* Input Area */}
             <div className="mt-auto flex-shrink-0 space-y-3">
                 {error && (
                     <div className="p-3 bg-red-100 dark:bg-red-900/40 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 rounded-lg">
@@ -172,7 +177,6 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
         </div>
       </div>
 
-      {/* Right Panel: Image Viewer */}
       <div className="lg:w-2/3 h-full">
         <ImageViewer
           src={latestImage}
