@@ -2,6 +2,8 @@
 import { Model, Look, Lookboard, LegacyLook, OunassSKU } from '../types';
 import * as db from './dbService';
 import * as ounassService from './ounassService';
+import { base64toBlob } from '../utils';
+import * as blobService from './blobService';
 
 
 // FIX: Drastically reduce chunk size. Look objects can contain large base64 images,
@@ -139,6 +141,27 @@ export const importLegacyLooks = async (
             continue;
         }
 
+        // FIX: Upload base64 images to get URLs before creating the look object.
+        // This prevents payload size errors when saving data to the server.
+        const finalImageBlob = await base64toBlob(lookData.finalImage);
+        const finalImageUrl = await blobService.uploadFile(finalImageBlob, `legacy-import-${db.generateId()}.png`);
+
+        const variationUrls: string[] = [];
+        if (Array.isArray(lookData.variations)) {
+            for (const variationBase64 of lookData.variations) {
+                if (typeof variationBase64 === 'string' && variationBase64.startsWith('data:image')) {
+                    try {
+                        const variationBlob = await base64toBlob(variationBase64);
+                        const variationUrl = await blobService.uploadFile(variationBlob, `legacy-variation-${db.generateId()}.png`);
+                        variationUrls.push(variationUrl);
+                    } catch (error) {
+                        console.warn("Skipping invalid variation image during import:", error);
+                    }
+                }
+            }
+        }
+
+
         let skusToFetch: string[] = [];
 
         // FIX: Handle both legacy format (productSkus) and current format (products array)
@@ -165,8 +188,8 @@ export const importLegacyLooks = async (
             id: db.generateId(),
             model: defaultModel,
             products: productData,
-            finalImage: lookData.finalImage,
-            variations: Array.isArray(lookData.variations) ? lookData.variations : [],
+            finalImage: finalImageUrl,
+            variations: variationUrls,
             createdAt: Date.now(),
         };
         importedLooks.push(newLook);
