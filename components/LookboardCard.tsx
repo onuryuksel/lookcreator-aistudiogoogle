@@ -9,9 +9,10 @@ interface LookboardCardProps {
   comments?: Comment[];
   onVote?: (vote: 'liked' | 'disliked') => void;
   onComment?: (text: string) => void;
+  onImageClick?: () => void;
 }
 
-const LookboardCard: React.FC<LookboardCardProps> = ({ look, feedback, comments, onVote, onComment }) => {
+const LookboardCard: React.FC<LookboardCardProps> = ({ look, feedback, comments, onVote, onComment, onImageClick }) => {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   
@@ -27,8 +28,15 @@ const LookboardCard: React.FC<LookboardCardProps> = ({ look, feedback, comments,
 
   return (
     <Card className="p-0 flex flex-col">
-      <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-t-lg overflow-hidden">
-        <img src={look.finalImage} alt="Look" className="w-full h-full object-contain" />
+      <div 
+        className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-t-lg overflow-hidden group cursor-pointer"
+        onClick={onImageClick}
+      >
+        <img 
+          src={look.finalImage} 
+          alt="Look" 
+          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" 
+        />
       </div>
       
       {isFeedbackEnabled && (

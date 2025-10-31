@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Look, Lookboard, SharedLookboardInstance } from '../types';
 import LookboardCard from '../components/LookboardCard';
+import { Modal } from '../components/common';
+import ProductCard from '../components/ProductCard';
 
 interface ViewLookboardData {
     lookboard: Lookboard;
@@ -16,6 +18,7 @@ interface ViewLookboardPageProps {
 const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate }) => {
   const { lookboard, looks, instance } = data;
   const isFeedbackEnabled = !!instance && !!onUpdate;
+  const [selectedLook, setSelectedLook] = useState<Look | null>(null);
 
   const handleVote = (lookId: number, vote: 'liked' | 'disliked') => {
     if (!isFeedbackEnabled) return;
@@ -71,6 +74,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                         <LookboardCard
                           key={look.id}
                           look={look}
+                          onImageClick={() => setSelectedLook(look)}
                           // Only pass feedback props if feedback is enabled
                           feedback={isFeedbackEnabled ? instance.feedbacks?.[look.id!] || null : undefined}
                           comments={isFeedbackEnabled ? instance.comments?.[look.id!] || [] : undefined}
@@ -92,6 +96,35 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
             </p>
         </footer>
       </div>
+      {selectedLook && (
+            <Modal
+                isOpen={!!selectedLook}
+                onClose={() => setSelectedLook(null)}
+                title={`Products in Look`}
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-1">
+                        <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden">
+                           <img src={selectedLook.finalImage} alt="Look" className="w-full h-full object-contain" />
+                        </div>
+                    </div>
+                    <div className="md:col-span-2">
+                         <h3 className="text-lg font-bold mb-4">Products ({selectedLook.products.length})</h3>
+                         {selectedLook.products.length > 0 ? (
+                            <div className="relative">
+                                <div className="flex gap-4 overflow-x-auto pb-4 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
+                                    {selectedLook.products.map(product => (
+                                        <ProductCard key={product.id} product={product} />
+                                    ))}
+                                </div>
+                            </div>
+                         ) : (
+                            <p className="text-zinc-500">No products are associated with this look.</p>
+                         )}
+                    </div>
+                </div>
+            </Modal>
+        )}
     </div>
   );
 };
