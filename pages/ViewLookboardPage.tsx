@@ -72,9 +72,6 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
         
         <main>
             <div className="text-center mb-10">
-              <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 mb-2">
-                A lookboard curated by <span className="font-semibold">{lookboard.createdByUsername}</span>
-              </p>
               <h2 
                 className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100'
               >
@@ -101,6 +98,9 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
         </main>
         
         <footer className="text-center mt-16 py-6 border-t border-zinc-200 dark:border-zinc-800">
+             <p className="text-sm text-zinc-500 dark:text-zinc-500 mb-2">
+                A lookboard curated by <span className="font-semibold text-zinc-600 dark:text-zinc-400">{lookboard.createdByUsername}</span>
+            </p>
             <p className="text-sm text-zinc-500 dark:text-zinc-500">
                 &copy; {new Date().getFullYear()} Ounass. All Rights Reserved.
             </p>
