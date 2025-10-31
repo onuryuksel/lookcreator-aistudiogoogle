@@ -80,7 +80,7 @@ ${facialHairPrompt}
 export const generateModelFromPhoto = async (photos: File[], name?: string): Promise<{imageUrl: string, metadata: Omit<Model, 'imageUrl' | 'name' | 'id'>, name: string}> => {
   const imageParts = await filesToGenerativeParts(photos);
 
-  const metadataPromptText = "Analyze the person in the provided image(s) and describe their physical attributes, including an estimated height in centimeters. Provide your response as a JSON object.";
+  const metadataPromptText = "Analyze the person in the provided image(s) and describe their physical attributes, including an estimated height in centimeters. Also, suggest a single suitable name for the model. Provide your response as a JSON object.";
   console.log("[Gemini Service] Sending Metadata Extraction Prompt:", metadataPromptText);
   const metadataResponse = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -95,6 +95,7 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
         responseSchema: {
             type: Type.OBJECT,
             properties: {
+                suggestedName: { type: Type.STRING, description: "A single, suitable first name for the model." },
                 gender: { type: Type.STRING },
                 ethnicity: { type: Type.STRING },
                 ageAppearance: { type: Type.STRING, description: "e.g., '20s', '30s'" },
@@ -105,7 +106,7 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
                 hairStyle: { type: Type.STRING },
                 facialHair: { type: Type.STRING, description: "if applicable, otherwise 'none'" }
             },
-            required: ['gender', 'ethnicity', 'ageAppearance']
+            required: ['suggestedName', 'gender', 'ethnicity', 'ageAppearance']
         }
     }
   });
@@ -125,17 +126,7 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
     facialHair: rawMetadata.facialHair || 'None',
   };
 
-  let modelName = name;
-  if (!modelName) {
-      const namePrompt = `Suggest a single, suitable name for a model with these attributes: Gender: ${metadata.gender}, Ethnicity: ${metadata.ethnicity}. Just return the name, nothing else.`;
-      console.log("[Gemini Service] Sending Name Generation Prompt:", namePrompt);
-      const nameResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: namePrompt,
-      });
-      console.log('[Gemini Service] Received AI Response (Name):', nameResponse.text);
-      modelName = nameResponse.text.trim();
-  }
+  const modelName = name || rawMetadata.suggestedName || 'New Model';
 
   const clothingPrompt = metadata.gender.toLowerCase() === 'male'
     ? 'a neutral light grey (#D3D3D3) fitted t-shirt and shorts.'
@@ -190,5 +181,5 @@ export const generateModelFromPhoto = async (photos: File[], name?: string): Pro
   const base64Image = generatedPart.inlineData.data;
   const mimeType = generatedPart.inlineData.mimeType;
   
-  return { imageUrl: `data:${mimeType};base64,${base64Image}`, metadata, name: modelName! };
+  return { imageUrl: `data:${mimeType};base64,${base64Image}`, metadata, name: modelName };
 };

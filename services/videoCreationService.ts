@@ -132,6 +132,9 @@ export const generateVideo = async (
         });
     } catch (error: any) {
         console.error("[Veo Service] Error during video generation:", error);
+        if (error.message && (error.message.includes("quota") || error.message.includes("RESOURCE_EXHAUSTED"))) {
+            throw new Error("VIDEO_QUOTA_EXCEEDED");
+        }
         if (error.message && error.message.includes("Requested entity was not found")) {
             throw new Error("API_KEY_INVALID");
         }

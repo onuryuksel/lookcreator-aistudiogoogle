@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Look } from '../types';
 import * as blobService from '../services/blobService';
+import * as rateLimitService from '../services/rateLimitService';
 import { base64toBlob } from '../utils';
 import { Button, Spinner } from '../components/common';
 import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
@@ -42,6 +43,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
+  const [remainingRequests, setRemainingRequests] = useState(0);
 
   const allImages = useMemo(() => {
     return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
@@ -49,7 +51,18 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
     );
   }, [look.finalImage, look.variations]);
 
+  useEffect(() => {
+    setRemainingRequests(rateLimitService.getRemainingVideoRequests());
+  }, []);
+
   const handleGenerateBrief = async () => {
+    if (!rateLimitService.canMakeVideoRequest()) {
+        const remaining = rateLimitService.getRemainingVideoRequests();
+        setError(`You have reached your daily video generation limit. Remaining: ${remaining}. Please try again tomorrow.`);
+        showToast('Daily video generation limit reached.', 'error');
+        return;
+    }
+
     setIsGenerating(true);
     setLoadingMessage('AI Video Director is crafting a prompt...');
     setError(null);
@@ -67,6 +80,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
   };
 
   const handleGenerateVideo = async () => {
+     if (!rateLimitService.canMakeVideoRequest()) {
+        const remaining = rateLimitService.getRemainingVideoRequests();
+        setError(`You have reached your daily video generation limit. Remaining: ${remaining}. Please try again tomorrow.`);
+        showToast('Daily video generation limit reached.', 'error');
+        return;
+    }
     setIsGenerating(true);
     setError(null);
 
@@ -103,8 +122,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
         }
         // --- END: Aspect Ratio Conformance ---
 
-
         setLoadingMessage('Initializing video generation with Veo... This can take a few minutes.');
+        
+        // Increment the counter just before making the API call
+        rateLimitService.incrementVideoRequestCount();
+        setRemainingRequests(prev => Math.max(0, prev - 1));
+
         const videoBase64 = await generateVideo(directorPrompt, conformedStartImage, conformedEndImage, aspectRatio, durationSeconds);
         const videoBlob = await base64toBlob(videoBase64, 'video/mp4');
         const videoUrl = await blobService.uploadFile(videoBlob, 'video.mp4');
@@ -112,7 +135,10 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
         setStep('result');
     } catch (err) {
         console.error("Error generating video:", err);
-        if (err instanceof Error && err.message === 'API_KEY_INVALID') {
+        if (err instanceof Error && err.message === 'VIDEO_QUOTA_EXCEEDED') {
+            setError("You have exceeded your daily quota for video generation. Please try again tomorrow.");
+            setRemainingRequests(0); // Sync UI with the hard limit
+        } else if (err instanceof Error && err.message === 'API_KEY_INVALID') {
             setError("Your API key is invalid or requires billing to be enabled. Please check your Vercel environment variables.");
         } else {
             setError(err instanceof Error ? err.message : 'Failed to generate video.');
@@ -140,6 +166,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
   };
   
   const renderContent = () => {
+    const quotaMessage = (
+        <p className="text-sm text-center text-zinc-500 dark:text-zinc-400 mt-4">
+            You have {remainingRequests} video generation(s) remaining today.
+        </p>
+    );
+
     switch (step) {
       case 'input':
         return (
@@ -188,6 +220,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
                 </div>
               </div>
             </div>
+            {quotaMessage}
           </>
         );
       case 'review':
@@ -198,6 +231,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
             <div className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-md text-sm whitespace-pre-wrap overflow-x-auto max-h-80 mb-4">
               <p>{directorPrompt}</p>
             </div>
+            {quotaMessage}
           </>
         );
       case 'result':
@@ -205,6 +239,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
           <>
             <h2 className="text-xl font-bold mb-2">Step 3: Final Video</h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Here is your generated video. You can save it as a new variation for your look.</p>
+            {quotaMessage}
           </>
         );
     }
@@ -240,12 +275,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
             )}
             <div className="mt-6 flex justify-end">
               {step === 'input' && (
-                <Button onClick={handleGenerateBrief} disabled={isGenerating || isSaving}>
+                <Button onClick={handleGenerateBrief} disabled={isGenerating || isSaving || remainingRequests <= 0}>
                   {isGenerating ? <Spinner /> : 'Generate Brief'}
                 </Button>
               )}
               {step === 'review' && (
-                <Button onClick={handleGenerateVideo} disabled={isGenerating || isSaving}>
+                <Button onClick={handleGenerateVideo} disabled={isGenerating || isSaving || remainingRequests <= 0}>
                   {isGenerating ? <Spinner /> : 'Generate Video'}
                 </Button>
               )}

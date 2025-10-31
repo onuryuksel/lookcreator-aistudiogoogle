@@ -56,6 +56,7 @@ export interface Look {
   visibility: 'public' | 'private';
   createdBy: string; // user email
   createdByUsername: string;
+  tags?: string[];
 }
 
 // For lookboards, from LookboardsList.tsx, ViewLookboardPage.tsx

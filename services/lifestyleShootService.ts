@@ -211,6 +211,7 @@ You are an AI photographer creating a hyperrealistic lifestyle image based on a 
 2.  **Follow the Art Director's Plan:** The provided JSON plan is your complete and only guide. You must adhere to its rich, descriptive specifications for the new scene, lighting, camera work, and model direction.
 3.  **Seamless Integration:** The model must look like they were naturally photographed in the new environment. Pay close attention to realistic lighting, shadows, and perspective.
 4.  **Hyperrealism is Key:** The final image must be indistinguishable from a real, high-fashion photograph. The model's face and skin must look completely natural and human, with no 'AI-generated' artifacts.
+5.  **CRITICAL LIGHTING RULE:** The lighting described in the plan must illuminate the scene NATURALLY. The light sources themselves (e.g., studio lights, softboxes, flashes, light stands) MUST NOT be visible in the final image, unless they are a natural part of the environment like a decorative lamp or the sun. Focus on the *effect* of the light, not the equipment.
 
 **Art Director's Plan (JSON):**
 ${JSON.stringify(artDirectorPrompt, null, 2)}

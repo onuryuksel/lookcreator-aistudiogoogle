@@ -6,6 +6,7 @@ import * as blobService from '../services/blobService';
 import * as ounassService from '../services/ounassService';
 import { generateModelFromForm, generateModelFromPhoto } from '../services/modelGenerationService';
 import { performVirtualTryOn } from '../services/virtualTryOnService';
+import { generateTagsForLook } from '../services/tagGenerationService';
 import { base64toBlob } from '../utils';
 
 import ModelPanel from '../components/ModelPanel';
@@ -253,6 +254,10 @@ const CreatorStudio: React.FC = () => {
                     currentModelImage = newImage;
                     
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, outputImage: newImage, status: 'completed' } : step));
+                    
+                    if (i < fetchedSkus.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
+                    }
                 } catch (err) {
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
                     throw err; 
@@ -304,6 +309,10 @@ const CreatorStudio: React.FC = () => {
                     const newImage = await performVirtualTryOn(currentModelImage, selectedModel, sku, previousProducts);
                     currentModelImage = newImage;
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, outputImage: newImage, status: 'completed' } : step));
+                    
+                    if (i < tryOnSteps.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
+                    }
                 } catch (err) {
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
                     throw err;
@@ -333,6 +342,8 @@ const CreatorStudio: React.FC = () => {
         try {
             const imageBlob = await base64toBlob(finalLookImage);
             const imageUrl = await blobService.uploadFile(imageBlob);
+
+            const generatedTags = await generateTagsForLook(imageUrl);
     
             const newLook: Look = {
                 id: db.generateId(),
@@ -344,6 +355,7 @@ const CreatorStudio: React.FC = () => {
                 visibility,
                 createdBy: user.email,
                 createdByUsername: user.username,
+                tags: generatedTags,
             };
     
             const updatedLooks = [...looks, newLook];

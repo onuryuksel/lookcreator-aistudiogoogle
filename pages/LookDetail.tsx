@@ -34,6 +34,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [newTag, setNewTag] = useState('');
 
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
   const [showProductRightArrow, setShowProductRightArrow] = useState(false);
@@ -84,6 +85,20 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
         await onUpdate(updatedLook);
         showToast("Look is now public!", "success");
     }
+  };
+
+  const handleAddTag = async () => {
+    if (!newTag.trim() || (look.tags && look.tags.map(t => t.toLowerCase()).includes(newTag.trim().toLowerCase()))) {
+        setNewTag('');
+        return;
+    }
+    const updatedLook: Look = {
+        ...look,
+        tags: [...new Set([...(look.tags || []), newTag.trim()])],
+    };
+    await onUpdate(updatedLook);
+    setNewTag('');
+    showToast("Tag added!", "success");
   };
 
 
@@ -334,6 +349,36 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
                 </div>
               </Card>
             )}
+
+            <Card>
+                <h3 className="text-lg font-bold mb-4">Tags</h3>
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {(look.tags && look.tags.length > 0) ? (
+                        look.tags.map((tag, index) => (
+                            <span key={index} className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full text-sm">
+                                {tag}
+                            </span>
+                        ))
+                    ) : (
+                        <p className="text-sm text-zinc-500">No tags yet. Add one below!</p>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
+                        placeholder="Add a new tag..."
+                        className="flex-grow w-full px-3 py-1.5 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
+                        disabled={isSaving}
+                    />
+                    <Button onClick={handleAddTag} disabled={!newTag.trim() || isSaving}>
+                        Add
+                    </Button>
+                </div>
+            </Card>
+
         </div>
       </div>
       
