@@ -251,7 +251,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                   )}
                   <div ref={variationsScrollContainerRef} className="flex w-full gap-4 overflow-x-auto p-2 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
                     {allImages.map((img, index) => {
-                      const isVideo = img.includes('.mp4');
+                      const isVideo = img && (img.startsWith('data:video/') || img.endsWith('.mp4'));
                       return (
                       <div
                         key={index}

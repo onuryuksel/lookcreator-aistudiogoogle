@@ -30,7 +30,7 @@ const FullscreenImageViewer: React.FC<FullscreenImageViewerProps> = ({ isOpen, o
     return null;
   }
 
-  const isVideo = src && src.startsWith('data:video/');
+  const isVideo = src && (src.startsWith('data:video/') || src.endsWith('.mp4'));
 
   // A simple fade-in animation for a smoother appearance.
   const animationStyle = `

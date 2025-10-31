@@ -103,7 +103,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
           {looks.length > 0 ? (
             <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-4 space-y-4">
               {looks.map(look => {
-                const isVideo = look.finalImage.startsWith('data:video/');
+                const isVideo = look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4');
                 return (
                 <div 
                   key={look.id} 

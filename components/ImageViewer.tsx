@@ -12,7 +12,7 @@ interface ImageViewerProps {
 
 const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, isLoading = false, loadingText }) => {
   const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
-  const isVideo = src && src.startsWith('data:video/');
+  const isVideo = src && (src.startsWith('data:video/') || src.endsWith('.mp4'));
 
   const handleDownload = () => {
     const link = document.createElement('a');
