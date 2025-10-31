@@ -1,5 +1,3 @@
-
-
 // From ounassService.ts and others
 export interface OunassSKU {
   id: number;
@@ -155,4 +153,10 @@ export interface User {
   // These properties are for server-side use only and are stripped before sending user data to the client.
   hashedPassword?: string;
   salt?: string;
+}
+
+// For legacy import from old studio
+export interface LegacyLook {
+  finalImage: string;
+  productSkus: string[];
 }

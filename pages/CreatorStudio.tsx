@@ -518,6 +518,50 @@ const CreatorStudio: React.FC = () => {
         }
     };
 
+    const handleImportLegacyData = () => {
+        if (!user || user.role !== 'admin') {
+            showToast('You must be an admin to perform this action.', 'error');
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                setIsImporting(true);
+                try {
+                    const fileContent = event.target?.result as string;
+                    if (!fileContent) {
+                        throw new Error("File is empty or could not be read.");
+                    }
+
+                    const newLooks = await dataService.importLegacyLooks(fileContent, models);
+                    if (newLooks.length === 0) {
+                        showToast("No valid looks found in the import file.", "success");
+                        return;
+                    }
+
+                    const updatedLooks = [...looks, ...newLooks];
+                    setLooks(updatedLooks);
+                    await saveAllData(models, updatedLooks, lookboards, `Successfully imported ${newLooks.length} legacy look(s)!`);
+                    
+                } catch (error) {
+                    console.error('Failed to import legacy data:', error);
+                    showToast(error instanceof Error ? error.message : 'Failed to import legacy data.', 'error');
+                } finally {
+                    setIsImporting(false);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
 
     // --- UI Rendering ---
     const renderHeader = () => (
@@ -557,6 +601,11 @@ const CreatorStudio: React.FC = () => {
                     <DropdownItem onClick={handleImportData} disabled={isImporting || isSaving}>
                         {isImporting ? <Spinner /> : <UploadIcon />} {isImporting ? 'Importing...' : 'Import Data'}
                     </DropdownItem>
+                     {user?.role === 'admin' && (
+                         <DropdownItem onClick={handleImportLegacyData} disabled={isImporting || isSaving}>
+                            <UploadIcon /> Import from Old Studio
+                        </DropdownItem>
+                    )}
                     <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
                         <TrashIcon /> Clear All Data
                     </DropdownItem>
@@ -643,21 +692,24 @@ const CreatorStudio: React.FC = () => {
                  return activeLook ? <div className="p-6"><ConversationalEditPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
+                    onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
             case 'lifestyle-shoot':
                  return activeLook ? <div className="p-6"><LifestyleShootPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
+                    onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
              case 'video-creation':
                  return activeLook ? <div className="p-6"><VideoCreationPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    // FIX: Make handler async to correctly return a Promise, satisfying the onSave prop type.
+                    onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
                     isSaving={isSaving}
                 /></div> : null;
             default:

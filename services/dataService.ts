@@ -1,5 +1,8 @@
 // FIX: Added `Model` to the import statement to resolve the TypeScript error "Cannot find name 'Model'".
-import { Model, Look, Lookboard } from '../types';
+import { Model, Look, Lookboard, LegacyLook, OunassSKU } from '../types';
+import * as db from './dbService';
+import * as ounassService from './ounassService';
+
 
 // FIX: Drastically reduce chunk size. Look objects can contain large base64 images,
 // so a smaller number of items per chunk is needed to stay under payload limits.
@@ -96,4 +99,52 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
     }
 
     await commitChunks(email, importId, chunkCounts);
+};
+
+export const importLegacyLooks = async (
+    fileContent: string, 
+    models: Model[]
+): Promise<Look[]> => {
+    if (models.length === 0) {
+        throw new Error("Cannot import legacy looks: No models available to assign to the looks. Please create a model first.");
+    }
+    const defaultModel = models[0];
+
+    let legacyData;
+    try {
+        legacyData = JSON.parse(fileContent);
+    } catch (e) {
+        throw new Error("Invalid import file. Could not parse JSON.");
+    }
+    
+    if (!Array.isArray(legacyData)) {
+        throw new Error("Invalid import file format. Expected a JSON array of looks.");
+    }
+    const legacyLooks: LegacyLook[] = legacyData;
+
+    const importedLooks: Look[] = [];
+
+    // Process sequentially to avoid potential rate-limiting on the Ounass API
+    for (const legacyLook of legacyLooks) {
+        if (!legacyLook.productSkus || !Array.isArray(legacyLook.productSkus) || !legacyLook.finalImage) {
+            console.warn("Skipping invalid legacy look object:", legacyLook);
+            continue;
+        }
+
+        const productData = (await Promise.all(
+            legacyLook.productSkus.map(sku => ounassService.fetchSkuData(sku))
+        )).filter((p): p is OunassSKU => p !== null);
+
+        const newLook: Look = {
+            id: db.generateId(),
+            model: defaultModel,
+            products: productData,
+            finalImage: legacyLook.finalImage,
+            variations: [], // Legacy looks don't have variations
+            createdAt: Date.now(),
+        };
+        importedLooks.push(newLook);
+    }
+    
+    return importedLooks;
 };

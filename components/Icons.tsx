@@ -57,8 +57,9 @@ export const RefreshIcon: React.FC = () => (
     </Icon>
 );
 
-export const PlusIcon: React.FC = () => (
-    <Icon>
+// FIX: Updated PlusIcon to accept and pass through SVG props, allowing className to be applied.
+export const PlusIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props}>
         <line x1="12" y1="5" x2="12" y2="19" />
         <line x1="5" y1="12" x2="19" y2="12" />
     </Icon>
