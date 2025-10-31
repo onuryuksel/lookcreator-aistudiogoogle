@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Model, OunassSKU, TryOnStep, Look, Lookboard } from '../types';
 import * as db from '../services/dbService';
+import * as dataService from '../services/dataService';
 import * as ounassService from '../services/ounassService';
 import { generateModelFromForm, generateModelFromPhoto } from '../services/modelGenerationService';
 import { performVirtualTryOn } from '../services/virtualTryOnService';
@@ -16,7 +17,7 @@ import VideoCreationPage from './VideoCreationPage';
 
 import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
-import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon } from '../components/Icons';
+import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon, CloudUploadIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +31,8 @@ const CreatorStudio: React.FC = () => {
     const [looks, setLooks] = useState<Look[]>([]);
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isMigrating, setIsMigrating] = useState(false);
+
 
     // Creator view state
     const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
@@ -54,23 +57,51 @@ const CreatorStudio: React.FC = () => {
     const { user, logout } = useAuth();
 
 
+    // --- Data Persistence ---
+    const saveAllDataToServer = useCallback(async (updatedLooks: Look[], updatedLookboards: Lookboard[]) => {
+        if (!user) return;
+        try {
+            await dataService.saveServerData(user.email, updatedLooks, updatedLookboards);
+            showToast('Changes saved to cloud.', 'success');
+        } catch (error) {
+            console.error('Failed to save data to server:', error);
+            showToast('Failed to save changes to the cloud.', 'error');
+        }
+    }, [user, showToast]);
+
+
     // --- Data Loading ---
     const loadData = useCallback(async () => {
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
-        const [loadedModels, loadedLooks, loadedLookboards] = await Promise.all([db.getModels(), db.getLooks(), db.getLookboards()]);
+        // Models are still local as they are not user-specific yet
+        const loadedModels = await db.getModels();
         setModels(loadedModels);
-        setLooks(loadedLooks);
-        setLookboards(loadedLookboards);
+
         if (loadedModels.length > 0 && !selectedModelId) {
             setSelectedModelId(loadedModels[0].id);
         }
-        setIsLoading(false);
-    }, [selectedModelId]);
+
+        try {
+            const { looks: serverLooks, lookboards: serverLookboards } = await dataService.fetchServerData(user.email);
+            setLooks(serverLooks);
+            setLookboards(serverLookboards);
+        } catch (error) {
+            console.error("Failed to load server data:", error);
+            showToast("Could not load your data from the cloud.", "error");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user, selectedModelId, showToast]);
+
 
     useEffect(() => {
         loadData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run only once on mount
+    }, [user]); // Re-load data when user logs in
 
     // --- Model Management ---
     const handleCreateModelFromScratch = async (formData: Omit<Model, 'imageUrl' | 'id'>) => {
@@ -151,7 +182,7 @@ const CreatorStudio: React.FC = () => {
 
         try {
             const skuDataPromises = skus.map(ounassService.fetchSkuData);
-            const fetchedSkus = (await Promise.all(skuDataPromises)).filter((s): s is OunassSKU => s !== null);
+            const fetchedSkus = (await Promise.all(skuDataPromises)).filter((s): s is Omit<OunassSKU, 'id'> & { id: number } => s !== null);
 
             if (fetchedSkus.length !== skus.length) {
                 const notFoundSkus = skus.filter(originalSku => !fetchedSkus.some(fetched => fetched.sku === originalSku));
@@ -264,12 +295,11 @@ const CreatorStudio: React.FC = () => {
 
         const updatedLooks = [...looks, newLook];
         setLooks(updatedLooks);
-        await db.saveLooks(updatedLooks);
+        await saveAllDataToServer(updatedLooks, lookboards);
 
         // Reset for next creation
         setTryOnSteps([]);
         setFinalLookImage(null);
-        showToast("Look saved to 'Lookbook'!", 'success');
     };
 
 
@@ -288,7 +318,7 @@ const CreatorStudio: React.FC = () => {
     const handleUpdateLook = async (updatedLook: Look) => {
         const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
         setLooks(updatedLooks);
-        await db.saveLooks(updatedLooks);
+        await saveAllDataToServer(updatedLooks, lookboards);
         if (activeLook && activeLook.id === updatedLook.id) {
             setActiveLook(updatedLook);
         }
@@ -297,7 +327,7 @@ const CreatorStudio: React.FC = () => {
     const handleDeleteLook = async (id: number) => {
         const updatedLooks = looks.filter(l => l.id !== id);
         setLooks(updatedLooks);
-        await db.saveLooks(updatedLooks);
+        await saveAllDataToServer(updatedLooks, lookboards);
         setView('lookbook');
         setActiveLook(null);
     };
@@ -305,18 +335,53 @@ const CreatorStudio: React.FC = () => {
     // --- Lookboards Management ---
     const handleUpdateLookboards = async (boards: Lookboard[]) => {
         setLookboards(boards);
-        await db.saveLookboards(boards);
+        await saveAllDataToServer(looks, boards);
     };
 
     const selectedModel = models.find(m => m.id === selectedModelId);
 
     // --- Data Management ---
+    const handleMigrateData = async () => {
+        if (!user) {
+            showToast('You must be logged in to sync data.', 'error');
+            return;
+        }
+
+        const localLooks = await db.getLooks();
+        const localLookboards = await db.getLookboards();
+
+        if (localLooks.length === 0 && localLookboards.length === 0) {
+            showToast('No local data found to sync.', 'success');
+            return;
+        }
+
+        if (window.confirm(`This will upload your ${localLooks.length} local looks and ${localLookboards.length} local boards to your account. This action cannot be undone. Continue?`)) {
+            setIsMigrating(true);
+            try {
+                await dataService.saveServerData(user.email, localLooks, localLookboards);
+                showToast('Data successfully synced to your account!', 'success');
+                
+                // Clear local data to prevent duplicates
+                await db.clearLooks();
+                await db.clearLookboards();
+                
+                // Reload data from server
+                await loadData();
+            } catch (error) {
+                console.error('Failed to migrate data:', error);
+                showToast('Failed to sync data to the cloud.', 'error');
+            } finally {
+                setIsMigrating(false);
+            }
+        }
+    };
+    
     const handleExportData = async () => {
         try {
             const dataToExport = {
                 models: await db.getModels(),
-                looks: await db.getLooks(),
-                lookboards: await db.getLookboards(),
+                looks: looks, // Export from state (server data)
+                lookboards: lookboards, // Export from state (server data)
             };
             const jsonString = JSON.stringify(dataToExport, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
@@ -336,6 +401,11 @@ const CreatorStudio: React.FC = () => {
     };
 
     const handleImportData = () => {
+        if (!user) {
+            showToast('You must be logged in to import data.', 'error');
+            return;
+        }
+
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
@@ -348,9 +418,9 @@ const CreatorStudio: React.FC = () => {
                 try {
                     const data = JSON.parse(event.target?.result as string);
                     if (data.models && data.looks && data.lookboards) {
+                        // Import models locally, and looks/lookboards to the server
                         await db.saveModels(data.models);
-                        await db.saveLooks(data.looks);
-                        await db.saveLookboards(data.lookboards);
+                        await dataService.saveServerData(user.email, data.looks, data.lookboards);
                         await loadData(); // Reload all data into the app state
                         showToast('Data imported successfully!', 'success');
                     } else {
@@ -367,11 +437,14 @@ const CreatorStudio: React.FC = () => {
     };
 
     const handleClearData = async () => {
-        if (window.confirm('Are you sure you want to delete ALL your data (models, looks, and boards)? This action cannot be undone.')) {
+        if (!user) {
+             showToast('You must be logged in to clear data.', 'error');
+            return;
+        }
+        if (window.confirm('Are you sure you want to delete ALL your data (local models, and all cloud looks/boards)? This action cannot be undone.')) {
             try {
                 await db.clearModels();
-                await db.clearLooks();
-                await db.clearLookboards();
+                await dataService.saveServerData(user.email, [], []);
                 await loadData(); // Reload to show empty state
                 showToast('All data has been cleared.', 'success');
             } catch (error) {
@@ -405,6 +478,9 @@ const CreatorStudio: React.FC = () => {
                     <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
                         Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
                     </div>
+                     <DropdownItem onClick={handleMigrateData} disabled={isMigrating}>
+                        {isMigrating ? <Spinner/> : <CloudUploadIcon />} {isMigrating ? 'Syncing...' : 'Sync Local Data to Cloud'}
+                    </DropdownItem>
                     <DropdownItem onClick={handleExportData}>
                         <DownloadIcon /> Export All Data
                     </DropdownItem>

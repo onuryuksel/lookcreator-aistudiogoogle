@@ -25,6 +25,14 @@ export const UploadIcon: React.FC = () => (
   </Icon>
 );
 
+export const CloudUploadIcon: React.FC = () => (
+    <Icon>
+        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+        <path d="M12 12v9" />
+        <path d="m16 16-4-4-4 4" />
+    </Icon>
+);
+
 export const DownloadIcon: React.FC = () => (
     <Icon>
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

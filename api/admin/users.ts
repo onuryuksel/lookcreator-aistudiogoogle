@@ -11,7 +11,7 @@ export default async function handler(
     }
     
     // In a real app, you would add authentication here to ensure only admins can access this.
-    
+    // test
     try {
         const pendingEmails = await kv.smembers('pending_users');
         if (!pendingEmails || pendingEmails.length === 0) {
@@ -19,16 +19,35 @@ export default async function handler(
         }
 
         const userKeys = pendingEmails.map(email => `user:${email}`);
-        const usersData = await kv.mget<string[]>(...userKeys);
+        // FIX: Remove incorrect generic and let KV client infer return type.
+        // This makes the code more resilient to the client's auto-parsing behavior.
+        const usersData = await kv.mget(...userKeys);
         
         const users = usersData
-            .filter(Boolean) // Filter out null results if a user was deleted but not from the set
+            .filter(Boolean) // Filter out null results if a user key doesn't exist.
             .map(userData => {
-                // FIX: Simplified type declaration now that `password` is an optional field on `User`.
-                const user: User = JSON.parse(userData);
+                let user: User;
+                
+                // FIX: Defensively handle both string and object data types from KV.
+                // This prevents a JSON.parse error if the KV client has already parsed the data.
+                if (typeof userData === 'string') {
+                    try {
+                        user = JSON.parse(userData);
+                    } catch (e) {
+                        console.error('Failed to parse user data string:', userData, e);
+                        return null; // Skip corrupted data
+                    }
+                } else if (typeof userData === 'object' && userData !== null) {
+                    user = userData as User;
+                } else {
+                    return null; // Skip unexpected data types
+                }
+
                 delete user.password; // Don't send password to client
                 return user;
-            });
+            })
+            // Filter out any nulls that resulted from parsing errors or bad data.
+            .filter((user): user is User => user !== null);
 
         return response.status(200).json({ users });
     } catch (error) {
