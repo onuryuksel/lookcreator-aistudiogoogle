@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Look, LifestyleShootUserInput, ArtDirectorPrompt } from '../types';
 import * as blobService from '../services/blobService';
 import { base64toBlob } from '../utils';
@@ -49,6 +49,17 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
 
+  const imageVariations = useMemo(() => {
+    return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
+      (asset) => asset && !asset.startsWith('data:video/') && !asset.endsWith('.mp4')
+    );
+  }, [look.finalImage, look.variations]);
+
+  const [sourceImage, setSourceImage] = useState<string>(() => {
+    const isFinalImageAnImage = imageVariations.includes(look.finalImage);
+    return isFinalImageAnImage ? look.finalImage : imageVariations[0] || '';
+  });
+
   const [artDirectorPrompt, setArtDirectorPrompt] = useState<ArtDirectorPrompt | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState('9:16');
@@ -74,14 +85,28 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
       }
     }
   };
+  
+  const handleSourceImageChange = (newSource: string) => {
+    if (newSource === sourceImage) return;
+
+    if (step !== 'input' && !window.confirm('Changing the source image will reset your progress. Continue?')) {
+        return;
+    }
+    setSourceImage(newSource);
+    setStep('input');
+    setArtDirectorPrompt(null);
+    setGeneratedImage(null);
+    setError(null);
+  };
+
 
   const handleGenerateBrief = async () => {
     setIsGeneratingBrief(true);
     setError(null);
     try {
       const brief = creationMode === 'image' && referenceImage
-        ? await generateArtDirectorPromptFromImage(referenceImage, look)
-        : await generateArtDirectorPrompt(userInput, look);
+        ? await generateArtDirectorPromptFromImage(referenceImage, look, sourceImage)
+        : await generateArtDirectorPrompt(userInput, look, sourceImage);
       
       setArtDirectorPrompt(brief);
       setStep('review');
@@ -99,7 +124,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
     setError(null);
     try {
         const imageBase64 = await generateLifestyleImage(
-            look.finalImage,
+            sourceImage,
             artDirectorPrompt,
             aspectRatio,
         );
@@ -140,6 +165,27 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
         return (
           <>
             <h2 className="text-xl font-bold mb-2">Step 1: Creative Brief</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Source Image</label>
+                <div className="flex gap-2 overflow-x-auto pb-2 -ml-2 pl-2" style={{ scrollbarWidth: 'none' }}>
+                  {imageVariations.map(img => (
+                      <div key={img} className="flex-shrink-0">
+                          <img 
+                              src={img}
+                              alt="Variation"
+                              onClick={() => handleSourceImageChange(img)}
+                              className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 ${sourceImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                          />
+                      </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-b border-zinc-200 dark:border-zinc-700 my-4"></div>
+
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Choose how to inspire the AI Art Director.</p>
             
             <div className="border-b border-zinc-200 dark:border-zinc-700 mb-6">
@@ -269,7 +315,7 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
                 <div className="sticky top-24">
                      <div className="aspect-[3/4]">
                         <ImageViewer
-                            src={generatedImage || look.finalImage}
+                            src={generatedImage || sourceImage}
                             alt="Lifestyle look"
                             isLoading={isGenerating || isSaving}
                             loadingText={isSaving ? "Saving variation..." : isGeneratingBrief ? "AI Art Director is creating the brief..." : "Generating final lifestyle image..."}

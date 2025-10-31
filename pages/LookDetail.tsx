@@ -37,6 +37,12 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     return [...new Set([look.finalImage, ...(look.variations || [])])].filter(Boolean);
   }, [look.finalImage, look.variations]);
 
+  const imageVariations = useMemo(() => {
+    return allImages.filter(img => !(img.startsWith('data:video/') || img.endsWith('.mp4')));
+  }, [allImages]);
+
+  const hasImagesForEditing = imageVariations.length > 0;
+
   useEffect(() => {
     setSelectedImage(look.finalImage);
   }, [look.finalImage]);
@@ -183,16 +189,16 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                 </Button>
             }
         >
-            <DropdownItem onClick={onEdit} disabled={isSaving}>
+            <DropdownItem onClick={onEdit} disabled={isSaving || !hasImagesForEditing}>
                 <EditIcon/> Edit with AI
             </DropdownItem>
-            <DropdownItem onClick={onLifestyleShoot} disabled={isSaving}>
+            <DropdownItem onClick={onLifestyleShoot} disabled={isSaving || !hasImagesForEditing}>
                 <ClapperboardIcon/> Create Lifestyle Shoot
             </DropdownItem>
              <DropdownItem onClick={onVideoCreation} disabled={isSaving}>
                 <FilmIcon/> Create Video
             </DropdownItem>
-            <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)} disabled={isSaving}>
+            <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)} disabled={isSaving || !hasImagesForEditing}>
                 <CropIcon/> Change Aspect Ratio
             </DropdownItem>
             <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>

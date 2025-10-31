@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Look } from '../types';
 import { Modal, Button, Spinner } from './common';
 import { changeImageAspectRatio } from '../services/directImageEditingService';
@@ -15,9 +15,33 @@ interface AspectRatioModalProps {
 
 const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, look, onSaveVariation, isProcessing }) => {
     const [isGenerating, setIsGenerating] = useState(false);
+    
+    const imageVariations = useMemo(() => {
+        return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
+            (asset) => asset && !asset.startsWith('data:video/') && !asset.endsWith('.mp4')
+        );
+    }, [look.finalImage, look.variations]);
+
+    const [sourceImage, setSourceImage] = useState<string>(() => {
+        const isFinalImageAnImage = imageVariations.includes(look.finalImage);
+        return isFinalImageAnImage ? look.finalImage : imageVariations[0] || '';
+    });
+    
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedRatio, setSelectedRatio] = useState<string | null>(null);
+
+    const handleSourceImageChange = (newSource: string) => {
+        if (newSource === sourceImage) return;
+
+        if (generatedImage && !window.confirm('Changing the source image will discard your generated image. Continue?')) {
+            return;
+        }
+        setSourceImage(newSource);
+        setGeneratedImage(null);
+        setError(null);
+        setSelectedRatio(null);
+    };
 
     const handleGenerate = async (ratio: string) => {
         setIsGenerating(true);
@@ -25,7 +49,7 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
         setGeneratedImage(null);
         setSelectedRatio(ratio);
         try {
-            const newImage = await changeImageAspectRatio(look.finalImage, ratio);
+            const newImage = await changeImageAspectRatio(sourceImage, ratio);
             setGeneratedImage(newImage);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to generate new image.');
@@ -48,7 +72,7 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
         onClose();
     }
 
-    const displayImage = generatedImage || look.finalImage;
+    const displayImage = generatedImage || sourceImage;
 
     return (
         <Modal isOpen={isOpen} onClose={handleClose} title="Change Image Aspect Ratio">
@@ -66,6 +90,22 @@ const AspectRatioModal: React.FC<AspectRatioModalProps> = ({ isOpen, onClose, lo
                 </div>
 
                 <div className="flex flex-col">
+                     <div className="mb-4">
+                        <h3 className="font-semibold mb-2">Source Image:</h3>
+                        <div className="flex gap-2 overflow-x-auto pb-2 -ml-2 pl-2" style={{ scrollbarWidth: 'none' }}>
+                          {imageVariations.map(img => (
+                              <div key={img} className="flex-shrink-0">
+                                  <img 
+                                      src={img}
+                                      alt="Variation"
+                                      onClick={() => handleSourceImageChange(img)}
+                                      className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 ${sourceImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                                  />
+                              </div>
+                          ))}
+                        </div>
+                    </div>
+
                     <h3 className="font-semibold mb-2">Select a new aspect ratio:</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
                         {ASPECT_RATIOS.map(ratio => (

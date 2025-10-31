@@ -93,6 +93,7 @@ const getOutfitDescription = (look: Look): string => {
 export const generateArtDirectorPrompt = async (
     userInput: LifestyleShootUserInput,
     look: Look,
+    sourceImageUrl: string,
 ): Promise<ArtDirectorPrompt> => {
     const outfitDescription = getOutfitDescription(look);
 
@@ -129,7 +130,7 @@ Based on your expert analysis, create the ultimate photoshoot concept.
 `.trim();
     
     console.log('[AI Art Director] Sending prompt generation request...');
-    const imagePart = await urlToGenerativePart(look.finalImage);
+    const imagePart = await urlToGenerativePart(sourceImageUrl);
     
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -147,6 +148,7 @@ Based on your expert analysis, create the ultimate photoshoot concept.
 export const generateArtDirectorPromptFromImage = async (
     referenceImage: File,
     look: Look,
+    sourceImageUrl: string,
 ): Promise<ArtDirectorPrompt> => {
     const outfitDescription = getOutfitDescription(look);
 
@@ -175,7 +177,7 @@ Based on your hyper-detailed "description for a blind person," fill out every fi
 
     console.log('[AI Art Director from Image] Sending prompt generation request...');
     
-    const lookImagePart = await urlToGenerativePart(look.finalImage);
+    const lookImagePart = await urlToGenerativePart(sourceImageUrl);
     const referenceImageParts = await filesToGenerativeParts([referenceImage]);
 
     const response = await ai.models.generateContent({

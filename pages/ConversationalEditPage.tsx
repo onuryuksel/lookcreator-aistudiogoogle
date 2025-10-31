@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Look } from '../types';
 import * as blobService from '../services/blobService';
 import { base64toBlob } from '../utils';
@@ -36,7 +36,18 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [latestImage, setLatestImage] = useState(look.finalImage);
+  const imageVariations = useMemo(() => {
+    return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
+      (asset) => asset && !asset.startsWith('data:video/') && !asset.endsWith('.mp4')
+    );
+  }, [look.finalImage, look.variations]);
+
+  const [sourceImage, setSourceImage] = useState<string>(() => {
+      const isFinalImageAnImage = imageVariations.includes(look.finalImage);
+      return isFinalImageAnImage ? look.finalImage : imageVariations[0] || '';
+  });
+
+  const [latestImage, setLatestImage] = useState<string>(sourceImage);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFilePreview, setUploadedFilePreview] = useState<string | null>(null);
@@ -50,6 +61,21 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
         chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [conversation]);
+
+  useEffect(() => {
+    setLatestImage(sourceImage);
+  }, [sourceImage]);
+
+  const handleSourceImageChange = (newSource: string) => {
+    if (newSource === sourceImage) return;
+
+    if (conversation.length > 0 && !window.confirm('Changing the source image will clear your current edit history. Continue?')) {
+        return;
+    }
+    setSourceImage(newSource);
+    setConversation([]);
+    setError(null);
+  };
 
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,6 +156,25 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
         </div>
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 flex-grow flex flex-col">
             <h2 className="text-xl font-bold mb-2 flex-shrink-0">Edit with AI</h2>
+            
+            <div className="flex-shrink-0 mb-4">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Source Image</h3>
+              <div className="flex gap-2 overflow-x-auto pb-2 -ml-2 pl-2" style={{ scrollbarWidth: 'none' }}>
+                  {imageVariations.map(img => (
+                      <div key={img} className="flex-shrink-0">
+                          <img 
+                              src={img}
+                              alt="Variation"
+                              onClick={() => handleSourceImageChange(img)}
+                              className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 ${sourceImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}
+                          />
+                      </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-200 dark:border-zinc-700 -mx-4 mb-4" />
+
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4 flex-shrink-0">
                 Describe your edit. You can also add an image to guide the AI.
             </p>
