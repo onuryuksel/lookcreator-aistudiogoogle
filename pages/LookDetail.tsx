@@ -1,27 +1,35 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Look } from '../types';
+import { Look, LookOverrides } from '../types';
 import * as blobService from '../services/blobService';
 import { base64toBlob } from '../utils';
 import ProductCard from '../components/ProductCard';
 import { Button, Card, Dropdown, DropdownItem } from '../components/common';
-import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon } from '../components/Icons';
+import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon, ShareIcon } from '../components/Icons';
 import AspectRatioModal from '../components/AspectRatioModal';
 import ImageViewer from '../components/ImageViewer';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LookDetailProps {
   look: Look;
+  lookOverrides: LookOverrides;
   onBack: () => void;
   onDelete: (id: number) => Promise<void>;
   onUpdate: (updatedLook: Look) => Promise<void>;
+  onUpdateOverride: (lookId: number, newFinalImage: string) => Promise<void>;
   onEdit: () => void;
   onLifestyleShoot: () => void;
   onVideoCreation: () => void;
   isSaving: boolean;
 }
 
-const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdate, onEdit, onLifestyleShoot, onVideoCreation, isSaving }) => {
-  const [selectedImage, setSelectedImage] = useState(look.finalImage);
+const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, onDelete, onUpdate, onUpdateOverride, onEdit, onLifestyleShoot, onVideoCreation, isSaving }) => {
+  const { user } = useAuth();
+  const isCreator = user?.email === look.createdBy;
+  
+  const displayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
+  const [selectedImage, setSelectedImage] = useState(displayImage);
+  
   const productsScrollContainerRef = useRef<HTMLDivElement>(null);
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -44,16 +52,24 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   const hasImagesForEditing = imageVariations.length > 0;
 
   useEffect(() => {
-    setSelectedImage(look.finalImage);
-  }, [look.finalImage]);
+    const newDisplayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
+    setSelectedImage(newDisplayImage);
+  }, [look.finalImage, look.id, lookOverrides]);
 
   const handleSetAsMain = async () => {
-    const updatedLook: Look = {
-      ...look,
-      finalImage: selectedImage,
-      variations: allImages.filter(v => v !== selectedImage),
-    };
-    await onUpdate(updatedLook);
+    if (isCreator) {
+      // Creator updates the global finalImage
+      const updatedLook: Look = {
+        ...look,
+        finalImage: selectedImage,
+        variations: allImages.filter(v => v !== selectedImage),
+      };
+      await onUpdate(updatedLook);
+      showToast("Main image updated for all users.", "success");
+    } else {
+      // Other users set a personal override
+      await onUpdateOverride(look.id, selectedImage);
+    }
   };
   
   const handleDelete = async () => {
@@ -61,6 +77,15 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
       await onDelete(look.id!);
     }
   };
+
+  const handleMakePublic = async () => {
+    if (window.confirm('Are you sure you want to make this look public? This action cannot be undone.')) {
+        const updatedLook = { ...look, visibility: 'public' as const };
+        await onUpdate(updatedLook);
+        showToast("Look is now public!", "success");
+    }
+  };
+
 
   const handleSaveNewVariation = async (base64Image: string) => {
     setIsProcessing(true);
@@ -90,8 +115,8 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
         }
 
         const remainingImages = allImages.filter(img => img !== imageToDelete);
-        const newFinalImage = remainingImages[0];
-        const newVariations = remainingImages.slice(1);
+        const newFinalImage = look.finalImage === imageToDelete ? remainingImages[0] : look.finalImage;
+        const newVariations = remainingImages.filter(img => img !== newFinalImage);
 
         const updatedLook: Look = {
             ...look,
@@ -179,7 +204,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
           <ChevronLeftIcon /> Back to Lookbook
         </Button>
         <p className="hidden md:block text-sm text-zinc-500 dark:text-zinc-400">
-          Created on {new Date(look.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Created by {look.createdByUsername} on {new Date(look.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
         <Dropdown
             trigger={
@@ -201,9 +226,16 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)} disabled={isSaving || !hasImagesForEditing}>
                 <CropIcon/> Change Aspect Ratio
             </DropdownItem>
-            <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
-                <TrashIcon/> Delete Look
-            </DropdownItem>
+            {isCreator && look.visibility === 'private' && (
+                 <DropdownItem onClick={handleMakePublic} disabled={isSaving}>
+                    <ShareIcon/> Make Public
+                </DropdownItem>
+            )}
+            {isCreator && (
+              <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
+                  <TrashIcon/> Delete Look
+              </DropdownItem>
+            )}
         </Dropdown>
       </div>
 
@@ -212,13 +244,13 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
           <div className="sticky top-24">
             <div className="aspect-[3/4] relative">
               <ImageViewer src={selectedImage} alt="Selected look" />
-              {selectedImage !== look.finalImage && (
+              {selectedImage !== displayImage && (
                 <Button 
                   onClick={handleSetAsMain}
                   className="absolute top-4 left-4"
                   disabled={isSaving}
                 >
-                  <StarIcon/> Set as Main
+                  <StarIcon/> {isCreator ? 'Set as Main' : 'Set as My Main'}
                 </Button>
               )}
             </div>
@@ -275,7 +307,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                              <img src={img} alt={`Variation ${index + 1}`} className="w-full h-full object-contain bg-zinc-100 dark:bg-zinc-800" />
                           )}
                         </div>
-                         {allImages.length > 1 && (
+                         {allImages.length > 1 && isCreator && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();

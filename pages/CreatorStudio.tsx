@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Model, OunassSKU, TryOnStep, Look, Lookboard } from '../types';
+import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides } from '../types';
 import * as db from '../services/dbService';
 import * as dataService from '../services/dataService';
 import * as blobService from '../services/blobService';
@@ -21,6 +21,7 @@ import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/co
 import ModelCreationForm from '../components/ModelCreationForm';
 import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon, CloudUploadIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
+import SaveLookModal from '../components/SaveLookModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -32,6 +33,7 @@ const CreatorStudio: React.FC = () => {
     const [models, setModels] = useState<Model[]>([]);
     const [looks, setLooks] = useState<Look[]>([]);
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
+    const [lookOverrides, setLookOverrides] = useState<LookOverrides>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isMigrating, setIsMigrating] = useState(false);
@@ -52,6 +54,7 @@ const CreatorStudio: React.FC = () => {
 
     // Modals state
     const [isCreateModelModalOpen, setIsCreateModelModalOpen] = useState(false);
+    const [isSaveLookModalOpen, setIsSaveLookModalOpen] = useState(false);
     const [isCreatingModel, setIsCreatingModel] = useState(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const [imageModalUrl, setImageModalUrl] = useState('');
@@ -62,11 +65,11 @@ const CreatorStudio: React.FC = () => {
 
 
     // --- Data Persistence ---
-    const saveAllData = useCallback(async (updatedModels: Model[], updatedLooks: Look[], updatedLookboards: Lookboard[], successMessage?: string) => {
+    const saveAllData = useCallback(async (updatedModels: Model[], updatedLooks: Look[], updatedLookboards: Lookboard[], updatedOverrides: LookOverrides, successMessage?: string) => {
         if (!user) return;
         setIsSaving(true);
         try {
-            await dataService.saveLargeData(user.email, updatedModels, updatedLooks, updatedLookboards);
+            await dataService.saveLargeData(user.email, updatedModels, updatedLooks, updatedLookboards, updatedOverrides);
             showToast(successMessage || 'Changes saved to cloud.', 'success');
         } catch (error) {
             console.error('Failed to save data:', error);
@@ -85,7 +88,6 @@ const CreatorStudio: React.FC = () => {
             return;
         }
         setIsLoading(true);
-        // Models are still local as they are not user-specific yet
         const loadedModels = await db.getModels();
 
         // --- MIGRATION: Ensure all model images are URLs, not base64 ---
@@ -118,9 +120,10 @@ const CreatorStudio: React.FC = () => {
         }
 
         try {
-            const { looks: serverLooks, lookboards: serverLookboards } = await dataService.fetchServerData(user.email);
+            const { looks: serverLooks, lookboards: serverLookboards, overrides: serverOverrides } = await dataService.fetchServerData(user.email);
             setLooks(serverLooks);
             setLookboards(serverLookboards);
+            setLookOverrides(serverOverrides || {});
         } catch (error) {
             console.error("Failed to load server data:", error);
             showToast("Could not load your data from the cloud.", "error");
@@ -142,13 +145,12 @@ const CreatorStudio: React.FC = () => {
         try {
             const { imageUrl: imageBase64, name } = await generateModelFromForm(formData);
             
-            // FIX: Upload model image to blob storage instead of using base64
             const imageBlob = await base64toBlob(imageBase64);
             const imageUrl = await blobService.uploadFile(imageBlob, `model-scratch-${Date.now()}.png`);
 
             const newModel: Model = {
                 id: db.generateId(),
-                imageUrl, // Use the URL
+                imageUrl, 
                 name: name || formData.name || 'New Model',
                 ...formData
             };
@@ -160,7 +162,7 @@ const CreatorStudio: React.FC = () => {
         } catch (err) {
             console.error(err);
             setError(err instanceof Error ? err.message : 'Failed to create model.');
-            throw err; // Re-throw to keep form in error state
+            throw err; 
         } finally {
             setIsCreatingModel(false);
         }
@@ -172,13 +174,12 @@ const CreatorStudio: React.FC = () => {
         try {
             const { imageUrl: imageBase64, metadata, name: generatedName } = await generateModelFromPhoto([photo], name);
 
-            // FIX: Upload model image to blob storage instead of using base64
             const imageBlob = await base64toBlob(imageBase64);
             const imageUrl = await blobService.uploadFile(imageBlob, `model-photo-${Date.now()}.png`);
             
             const newModel: Model = {
                 id: db.generateId(),
-                imageUrl, // Use the URL
+                imageUrl, 
                 name: name || generatedName,
                 ...metadata
             };
@@ -190,7 +191,7 @@ const CreatorStudio: React.FC = () => {
         } catch (err) {
             console.error(err);
             setError(err instanceof Error ? err.message : 'Failed to create model from photo.');
-            throw err; // Re-throw to keep form in error state
+            throw err; 
         } finally {
             setIsCreatingModel(false);
         }
@@ -254,7 +255,7 @@ const CreatorStudio: React.FC = () => {
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, outputImage: newImage, status: 'completed' } : step));
                 } catch (err) {
                     setTryOnSteps(prev => prev.map((step, index) => index === i ? { ...step, status: 'failed' } : step));
-                    throw err; // Stop the process
+                    throw err; 
                 }
             }
             
@@ -319,41 +320,39 @@ const CreatorStudio: React.FC = () => {
         }
     };
 
-    const handleSaveLook = async () => {
+    const handleSaveLook = async (visibility: 'public' | 'private') => {
         const selectedModel = models.find(m => m.id === selectedModelId);
-        if (!finalLookImage || !selectedModel) {
-            showToast("Cannot save look. Final image or model is missing.", "error");
+        if (!finalLookImage || !selectedModel || !user) {
+            showToast("Cannot save look. Final image, model, or user is missing.", "error");
             return;
         }
     
-        setIsGenerating(true); // Reuse isGenerating for saving state
+        setIsGenerating(true); 
         setError(null);
     
         try {
-            // 1. Convert base64 to Blob
             const imageBlob = await base64toBlob(finalLookImage);
-    
-            // 2. Upload Blob and get URL
             const imageUrl = await blobService.uploadFile(imageBlob);
     
-            // 3. Create new Look with URL
             const newLook: Look = {
                 id: db.generateId(),
                 model: selectedModel,
                 products: tryOnSteps.map(step => step.sku),
                 finalImage: imageUrl,
                 variations: [],
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                visibility,
+                createdBy: user.email,
+                createdByUsername: user.username,
             };
     
-            // 4. Update state and save to server
             const updatedLooks = [...looks, newLook];
             setLooks(updatedLooks);
-            await saveAllData(models, updatedLooks, lookboards, "Look saved successfully!");
+            await saveAllData(models, updatedLooks, lookboards, lookOverrides, "Look saved successfully!");
     
-            // 5. Reset for next creation
             setTryOnSteps([]);
             setFinalLookImage(null);
+            setIsSaveLookModalOpen(false);
     
         } catch (err) {
             console.error("Error saving look:", err);
@@ -379,16 +378,28 @@ const CreatorStudio: React.FC = () => {
     const handleUpdateLook = async (updatedLook: Look) => {
         const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
         setLooks(updatedLooks);
-        await saveAllData(models, updatedLooks, lookboards);
+        await saveAllData(models, updatedLooks, lookboards, lookOverrides);
         if (activeLook && activeLook.id === updatedLook.id) {
             setActiveLook(updatedLook);
         }
     };
 
+    const handleUpdateLookOverride = async (lookId: number, newFinalImage: string) => {
+        const updatedOverrides = {
+            ...lookOverrides,
+            [lookId]: { finalImage: newFinalImage },
+        };
+        setLookOverrides(updatedOverrides);
+        // Save overrides separately for responsiveness
+        await dataService.saveOverrides(user!.email, updatedOverrides);
+        showToast("Your view of this look has been updated.", "success");
+    };
+
+
     const handleDeleteLook = async (id: number) => {
         const updatedLooks = looks.filter(l => l.id !== id);
         setLooks(updatedLooks);
-        await saveAllData(models, updatedLooks, lookboards, "Look deleted.");
+        await saveAllData(models, updatedLooks, lookboards, lookOverrides, "Look deleted.");
         setView('lookbook');
         setActiveLook(null);
     };
@@ -396,7 +407,7 @@ const CreatorStudio: React.FC = () => {
     // --- Lookboards Management ---
     const handleUpdateLookboards = async (boards: Lookboard[]) => {
         setLookboards(boards);
-        await saveAllData(models, looks, boards, "Lookboards updated.");
+        await saveAllData(models, looks, boards, lookOverrides, "Lookboards updated.");
     };
 
     const selectedModel = models.find(m => m.id === selectedModelId);
@@ -442,7 +453,7 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm(`This will merge your ${localLooks.length} local look(s) and ${localLookboards.length} local board(s) with your cloud account. Continue?`)) {
             setIsMigrating(true);
             try {
-                await saveAllData(models, mergedLooks, mergedLookboards, 'Data successfully synced to your account!');
+                await saveAllData(models, mergedLooks, mergedLookboards, lookOverrides, 'Data successfully synced to your account!');
                 
                 await db.clearLooks();
                 await db.clearLookboards();
@@ -518,7 +529,7 @@ const CreatorStudio: React.FC = () => {
                         importedData.lookboards.forEach((board: Lookboard) => combinedLookboardsMap.set(board.id, board));
                         const mergedLookboards = Array.from(combinedLookboardsMap.values());
 
-                        await saveAllData(mergedModels, mergedLooks, mergedLookboards, 'Data successfully merged and imported!');
+                        await saveAllData(mergedModels, mergedLooks, mergedLookboards, lookOverrides, 'Data successfully merged and imported!');
                         
                         await loadData();
                     } else {
@@ -544,7 +555,7 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm('Are you sure you want to delete ALL your data (local models, and all cloud looks/boards)? This action cannot be undone.')) {
             try {
                 await db.clearModels();
-                await saveAllData([], [], [], 'All data has been cleared.');
+                await saveAllData([], [], [], {}, 'All data has been cleared.');
                 await loadData();
             } catch (error) {
                 console.error('Failed to clear data:', error);
@@ -578,16 +589,16 @@ const CreatorStudio: React.FC = () => {
                         throw new Error("File is empty or could not be read.");
                     }
 
-                    const newLooks = await dataService.importLegacyLooks(fileContent, models);
+                    const newLooks = await dataService.importLegacyLooks(fileContent, models, user);
                     if (newLooks.length === 0) {
                         showToast("No valid looks found in the import file.", "success");
-                        setIsImporting(false); // End loading state here
+                        setIsImporting(false); 
                         return;
                     }
 
                     const updatedLooks = [...looks, ...newLooks];
                     setLooks(updatedLooks);
-                    await saveAllData(models, updatedLooks, lookboards, `Successfully imported ${newLooks.length} legacy look(s)!`);
+                    await saveAllData(models, updatedLooks, lookboards, lookOverrides, `Successfully imported ${newLooks.length} legacy look(s)!`);
                     
                 } catch (error) {
                     console.error('Failed to import legacy data:', error);
@@ -698,9 +709,9 @@ const CreatorStudio: React.FC = () => {
                             )}
                             {finalLookImage && !isGenerating && (
                                 <div className="mt-6 text-center">
-                                    <Button variant="primary" onClick={handleSaveLook} className="py-3 px-6 text-lg" disabled={isSaving}>
-                                        {isSaving ? <Spinner /> : <SaveIcon />}
-                                        {isSaving ? 'Saving...' : 'Add to Lookbook'}
+                                    <Button variant="primary" onClick={() => setIsSaveLookModalOpen(true)} className="py-3 px-6 text-lg" disabled={isSaving}>
+                                        <SaveIcon />
+                                        Add to Lookbook
                                     </Button>
                                 </div>
                             )}
@@ -711,6 +722,7 @@ const CreatorStudio: React.FC = () => {
                 return <Lookbook 
                     looks={looks}
                     lookboards={lookboards} 
+                    lookOverrides={lookOverrides}
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}
                     isSaving={isSaving}
@@ -719,9 +731,11 @@ const CreatorStudio: React.FC = () => {
             case 'look-detail':
                 return activeLook ? <div className="p-6"><LookDetail 
                     look={activeLook} 
+                    lookOverrides={lookOverrides}
                     onBack={() => setView('lookbook')} 
                     onDelete={handleDeleteLook}
                     onUpdate={handleUpdateLook}
+                    onUpdateOverride={handleUpdateLookOverride}
                     onEdit={() => setView('edit-look')}
                     onLifestyleShoot={() => setView('lifestyle-shoot')}
                     onVideoCreation={() => setView('video-creation')}
@@ -768,6 +782,14 @@ const CreatorStudio: React.FC = () => {
                         onCreateFromPhoto={handleCreateModelFromPhoto}
                     />
                 </Modal>
+            )}
+            {isSaveLookModalOpen && (
+                <SaveLookModal
+                    isOpen={isSaveLookModalOpen}
+                    onClose={() => setIsSaveLookModalOpen(false)}
+                    onSubmit={handleSaveLook}
+                    isSubmitting={isGenerating}
+                />
             )}
             <FullscreenImageViewer
                 isOpen={isImageModalOpen}

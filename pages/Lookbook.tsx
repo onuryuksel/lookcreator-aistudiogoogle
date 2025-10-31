@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Look, Lookboard } from '../types';
+import { Look, Lookboard, LookOverrides } from '../types';
 import * as db from '../services/dbService';
 import { Button } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
@@ -10,13 +10,14 @@ import { PlusIcon, ShareIcon } from '../components/Icons';
 interface LookbookProps {
   looks: Look[];
   lookboards: Lookboard[];
+  lookOverrides: LookOverrides;
   onSelectLook: (look: Look) => void;
   onUpdateLookboards: (boards: Lookboard[]) => Promise<void>;
   isSaving: boolean;
   onGoToCreator: () => void;
 }
 
-const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, onUpdateLookboards, isSaving, onGoToCreator }) => {
+const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, isSaving, onGoToCreator }) => {
   const [activeTab, setActiveTab] = useState<'looks' | 'boards'>('looks');
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
@@ -114,29 +115,34 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
             </div>
 
             {looks.map(look => {
-              const isVideo = look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4');
+              const displayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
+              const isVideo = displayImage.startsWith('data:video/') || displayImage.endsWith('.mp4');
               return (
               <div 
                 key={look.id} 
                 className="relative group cursor-pointer break-inside-avoid"
-                onClick={() => onSelectLook(look)}
               >
-                {isVideo ? (
-                   <video 
-                      src={look.finalImage} 
+                <div onClick={() => onSelectLook(look)}>
+                  {isVideo ? (
+                     <video 
+                        src={displayImage} 
+                        className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80 block"
+                        muted
+                        autoPlay
+                        loop
+                        playsInline
+                      />
+                  ) : (
+                    <img 
+                      src={displayImage} 
+                      alt={`Look ${look.id}`} 
                       className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80 block"
-                      muted
-                      autoPlay
-                      loop
-                      playsInline
                     />
-                ) : (
-                  <img 
-                    src={look.finalImage} 
-                    alt={`Look ${look.id}`} 
-                    className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80 block"
-                  />
-                )}
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent rounded-b-lg">
+                      <p className="text-white text-xs font-semibold truncate">Created by: {look.createdByUsername}</p>
+                  </div>
+                </div>
                 <div 
                   onClick={(e) => {
                     e.stopPropagation();

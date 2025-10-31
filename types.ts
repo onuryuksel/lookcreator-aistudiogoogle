@@ -53,6 +53,9 @@ export interface Look {
   finalImage: string; // The main image for the look - now a URL
   variations: string[]; // Other generated images - now URLs
   createdAt: number; // timestamp
+  visibility: 'public' | 'private';
+  createdBy: string; // user email
+  createdByUsername: string;
 }
 
 // For lookboards, from LookboardsList.tsx, ViewLookboardPage.tsx
@@ -160,3 +163,5 @@ export interface LegacyLook {
   finalImage: string;
   productSkus: string[];
 }
+
+export type LookOverrides = Record<number, { finalImage: string }>;

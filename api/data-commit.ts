@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Model, Look, Lookboard } from '../../types';
+import { Model, Look, Lookboard, LookOverrides } from '../../types';
 
 export default async function handler(
   request: NextApiRequest,
@@ -11,41 +11,64 @@ export default async function handler(
     }
 
     try {
-        const { email, importId, chunkCounts } = request.body;
-        if (!email || !importId || !chunkCounts) {
+        const { email, importId, chunkCounts, overrides } = request.body;
+        if (!email || !importId || !chunkCounts || !overrides) {
             return response.status(400).json({ message: 'Missing required fields for commit.' });
         }
 
-        const { models: totalModelChunks, looks: totalLookChunks, lookboards: totalLookboardChunks } = chunkCounts;
+        const { looks: totalLookChunks, lookboards: totalLookboardChunks } = chunkCounts;
         const emailLower = email.toLowerCase();
         
         // Generate keys for all chunks
-        const modelChunkKeys = Array.from({ length: totalModelChunks }, (_, i) => `import:${emailLower}:${importId}:models:${i}`);
         const lookChunkKeys = Array.from({ length: totalLookChunks }, (_, i) => `import:${emailLower}:${importId}:looks:${i}`);
         const lookboardChunkKeys = Array.from({ length: totalLookboardChunks }, (_, i) => `import:${emailLower}:${importId}:lookboards:${i}`);
         
         // Fetch all chunks
-        const modelChunksData = totalModelChunks > 0 ? await kv.mget<Model[][]>(...modelChunkKeys) : [];
         const lookChunksData = totalLookChunks > 0 ? await kv.mget<Look[][]>(...lookChunkKeys) : [];
         const lookboardChunksData = totalLookboardChunks > 0 ? await kv.mget<Lookboard[][]>(...lookboardChunkKeys) : [];
 
-        // Reassemble arrays, filtering out any null/undefined chunks
-        const allModels: Model[] = modelChunksData.flat().filter(Boolean) as Model[];
+        // Reassemble arrays
         const allLooks: Look[] = lookChunksData.flat().filter(Boolean) as Look[];
         const allLookboards: Lookboard[] = lookboardChunksData.flat().filter(Boolean) as Lookboard[];
 
-        // Final destination keys
-        const looksKey = `looks:${emailLower}`;
-        const boardsKey = `lookboards:${emailLower}`;
+        // --- Start of Public Look Logic ---
+        const userLooksKey = `looks:${emailLower}`;
+        const publicLooksKey = 'public_looks_hash';
 
-        // Save reassembled data
-        // NOTE: Models are saved locally on the client, so we don't save them to the server here.
-        // This commit is for looks and lookboards.
-        await kv.set(looksKey, allLooks);
-        await kv.set(boardsKey, allLookboards);
+        const oldUserLooks: Look[] = await kv.get(userLooksKey) || [];
+        const newUserLooks = allLooks.filter(l => l.createdBy === emailLower);
 
-        // Clean up temporary chunks
-        const allChunkKeys = [...modelChunkKeys, ...lookChunkKeys, ...lookboardChunkKeys];
+        const newPublicLooks = newUserLooks.filter(l => l.visibility === 'public');
+        const oldPublicLookIds = new Set(oldUserLooks.filter(l => l.visibility === 'public').map(l => l.id));
+        const newPublicLookIds = new Set(newPublicLooks.map(l => l.id));
+
+        const looksToUpdatePublicly = newPublicLooks.filter(l => l.visibility === 'public');
+        const lookIdsToRemovePublicly = oldUserLooks.filter(l => oldPublicLookIds.has(l.id) && !newPublicLookIds.has(l.id)).map(l => String(l.id));
+        // --- End of Public Look Logic ---
+
+        const pipeline = kv.pipeline();
+        
+        // 1. Update public hash
+        if (looksToUpdatePublicly.length > 0) {
+            const looksToUpdateMap = looksToUpdatePublicly.reduce((acc, look) => {
+                acc[look.id] = look;
+                return acc;
+            }, {} as Record<string, Look>);
+            pipeline.hset(publicLooksKey, looksToUpdateMap);
+        }
+        if (lookIdsToRemovePublicly.length > 0) {
+            pipeline.hdel(publicLooksKey, ...lookIdsToRemovePublicly);
+        }
+
+        // 2. Save user-specific data
+        pipeline.set(userLooksKey, newUserLooks);
+        pipeline.set(`lookboards:${emailLower}`, allLookboards);
+        pipeline.set(`user_overrides:${emailLower}`, overrides);
+
+        await pipeline.exec();
+
+        // 3. Clean up temporary chunks
+        const allChunkKeys = [...lookChunkKeys, ...lookboardChunkKeys];
         if (allChunkKeys.length > 0) {
             await kv.del(...allChunkKeys);
         }

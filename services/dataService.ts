@@ -1,5 +1,5 @@
 // FIX: Added `Model` to the import statement to resolve the TypeScript error "Cannot find name 'Model'".
-import { Model, Look, Lookboard, LegacyLook, OunassSKU } from '../types';
+import { Model, Look, Lookboard, LegacyLook, OunassSKU, User, LookOverrides } from '../types';
 import * as db from './dbService';
 import * as ounassService from './ounassService';
 import { base64toBlob } from '../utils';
@@ -28,48 +28,29 @@ const handleApiResponse = async (response: Response) => {
     return responseText ? JSON.parse(responseText) : {};
 };
 
-export const fetchServerData = async (email: string): Promise<{ looks: Look[], lookboards: Lookboard[] }> => {
+export const fetchServerData = async (email: string): Promise<{ looks: Look[], lookboards: Lookboard[], overrides: LookOverrides }> => {
     const response = await fetch(`/api/data?email=${encodeURIComponent(email)}`);
     return handleApiResponse(response);
 };
 
-export const saveServerData = async (email: string, looks: Look[], lookboards: Lookboard[]): Promise<void> => {
-    const response = await fetch('/api/data', {
+export const saveOverrides = async (email: string, overrides: LookOverrides): Promise<void> => {
+    const response = await fetch('/api/overrides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, looks, lookboards }),
+        body: JSON.stringify({ email, overrides }),
     });
     await handleApiResponse(response);
 };
 
-// --- Chunked Upload Functions for Large Data Import ---
 
-const sendChunk = async (email: string, importId: string, chunkIndex: number, totalChunks: number, chunkType: 'looks' | 'lookboards' | 'models', data: any[]) => {
-    const response = await fetch('/api/data-chunk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, importId, chunkIndex, totalChunks, chunkType, data }),
-    });
-    return handleApiResponse(response);
-};
-
-const commitChunks = async (email: string, importId: string, chunkCounts: { models: number, looks: number, lookboards: number }) => {
-    const response = await fetch('/api/data-commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, importId, chunkCounts }),
-    });
-    return handleApiResponse(response);
-};
-
-export const saveLargeData = async (email: string, models: Model[], looks: Look[], lookboards: Lookboard[]): Promise<void> => {
+// This is the main save function, it replaces the old saveServerData
+export const saveLargeData = async (email: string, models: Model[], looks: Look[], lookboards: Lookboard[], overrides: LookOverrides): Promise<void> => {
+     // The new /api/data endpoint handles the logic of public/private looks and can handle the full payload.
+     // The chunking logic is now primarily for massive imports. For regular saves, a direct call is better.
+     // However, to avoid a major refactor, we will continue to use the chunking flow,
+     // but the backend commit logic is now much smarter.
     const importId = `import-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-    const modelChunks = [];
-    for (let i = 0; i < models.length; i += CHUNK_SIZE) {
-        modelChunks.push(models.slice(i, i + CHUNK_SIZE));
-    }
-    
     const lookChunks = [];
     for (let i = 0; i < looks.length; i += CHUNK_SIZE) {
         lookChunks.push(looks.slice(i, i + CHUNK_SIZE));
@@ -81,17 +62,10 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
     }
 
     const chunkCounts = {
-        models: modelChunks.length,
         looks: lookChunks.length,
         lookboards: lookboardChunks.length,
     };
     
-    // FIX: Process chunks sequentially to prevent overloading the server with concurrent requests
-    // and to ensure each chunk is processed one by one, making the process more robust.
-    for (let i = 0; i < modelChunks.length; i++) {
-        await sendChunk(email, importId, i, chunkCounts.models, 'models', modelChunks[i]);
-    }
-
     for (let i = 0; i < lookChunks.length; i++) {
         await sendChunk(email, importId, i, chunkCounts.looks, 'looks', lookChunks[i]);
     }
@@ -100,12 +74,31 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
         await sendChunk(email, importId, i, chunkCounts.lookboards, 'lookboards', lookboardChunks[i]);
     }
 
-    await commitChunks(email, importId, chunkCounts);
+    await commitChunks(email, importId, chunkCounts, overrides);
+};
+
+const sendChunk = async (email: string, importId: string, chunkIndex: number, totalChunks: number, chunkType: 'looks' | 'lookboards', data: any[]) => {
+    const response = await fetch('/api/data-chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, importId, chunkIndex, totalChunks, chunkType, data }),
+    });
+    return handleApiResponse(response);
+};
+
+const commitChunks = async (email: string, importId: string, chunkCounts: { looks: number, lookboards: number }, overrides: LookOverrides) => {
+    const response = await fetch('/api/data-commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, importId, chunkCounts, overrides }),
+    });
+    return handleApiResponse(response);
 };
 
 export const importLegacyLooks = async (
     fileContent: string,
-    models: Model[]
+    models: Model[],
+    user: User
 ): Promise<Look[]> => {
     if (models.length === 0) {
         throw new Error("Cannot import: No models are available to assign to the new looks. Please create a model first.");
@@ -141,8 +134,6 @@ export const importLegacyLooks = async (
             continue;
         }
 
-        // FIX: Upload base64 images to get URLs before creating the look object.
-        // This prevents payload size errors when saving data to the server.
         const finalImageBlob = await base64toBlob(lookData.finalImage);
         const finalImageUrl = await blobService.uploadFile(finalImageBlob, `legacy-import-${db.generateId()}.png`);
 
@@ -164,14 +155,11 @@ export const importLegacyLooks = async (
 
         let skusToFetch: string[] = [];
 
-        // FIX: Handle both legacy format (productSkus) and current format (products array)
         if (Array.isArray(lookData.products)) {
-            // Current format: extract SKUs from product objects
             skusToFetch = lookData.products
                 .map((p: any) => p && typeof p === 'object' && typeof p.sku === 'string' ? p.sku : null)
                 .filter((sku): sku is string => !!sku);
         } else if (Array.isArray(lookData.productSkus)) {
-            // Legacy format: use the array of SKU strings directly
             skusToFetch = lookData.productSkus.filter((s: any) => typeof s === 'string');
         }
 
@@ -191,6 +179,9 @@ export const importLegacyLooks = async (
             finalImage: finalImageUrl,
             variations: variationUrls,
             createdAt: Date.now(),
+            visibility: 'private', // Imported looks are private by default
+            createdBy: user.email,
+            createdByUsername: user.username,
         };
         importedLooks.push(newLook);
     }
