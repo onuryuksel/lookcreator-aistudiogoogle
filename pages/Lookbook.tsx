@@ -102,17 +102,30 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
 
           {looks.length > 0 ? (
             <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-4 space-y-4">
-              {looks.map(look => (
+              {looks.map(look => {
+                const isVideo = look.finalImage.startsWith('data:video/');
+                return (
                 <div 
                   key={look.id} 
                   className="relative group break-inside-avoid cursor-pointer"
                   onClick={() => onSelectLook(look)}
                 >
-                  <img 
-                    src={look.finalImage} 
-                    alt={`Look ${look.id}`} 
-                    className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80"
-                  />
+                  {isVideo ? (
+                     <video 
+                        src={look.finalImage} 
+                        className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80"
+                        muted
+                        autoPlay
+                        loop
+                        playsInline
+                      />
+                  ) : (
+                    <img 
+                      src={look.finalImage} 
+                      alt={`Look ${look.id}`} 
+                      className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80"
+                    />
+                  )}
                   <div 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -123,7 +136,8 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, onSelectLook, on
                     {selectedLookIds.has(look.id) && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
              <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">

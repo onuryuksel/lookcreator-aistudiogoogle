@@ -30,6 +30,8 @@ const FullscreenImageViewer: React.FC<FullscreenImageViewerProps> = ({ isOpen, o
     return null;
   }
 
+  const isVideo = src && src.startsWith('data:video/');
+
   // A simple fade-in animation for a smoother appearance.
   const animationStyle = `
     @keyframes fadeIn {
@@ -57,11 +59,22 @@ const FullscreenImageViewer: React.FC<FullscreenImageViewerProps> = ({ isOpen, o
       </button>
       {/* Stop propagation so clicking the image itself doesn't close the modal */}
       <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
-        <img
-          src={src}
-          alt={alt}
-          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-        />
+        {isVideo ? (
+            <video
+              src={src}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              controls
+              autoPlay
+              muted
+              loop
+            />
+        ) : (
+            <img
+              src={src}
+              alt={alt}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            />
+        )}
       </div>
     </div>,
     document.body

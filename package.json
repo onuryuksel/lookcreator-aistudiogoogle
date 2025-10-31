@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-copy-of-copy-of-copy-of-ounass-look-creator-v4",
+  "name": "copy-of--ounass-look-creator-video-try---login-and-database",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,7 +14,9 @@
     "react-dom": "^19.2.0",
     "vite": "^7.1.9",
     "@vitejs/plugin-react": "^5.0.4",
-    "idb": "^8.0.0"
+    "idb": "^8.0.0",
+    "next": "^16.0.1",
+    "@vercel/kv": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

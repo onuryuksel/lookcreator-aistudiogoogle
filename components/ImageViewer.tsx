@@ -12,11 +12,12 @@ interface ImageViewerProps {
 
 const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, isLoading = false, loadingText }) => {
   const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
+  const isVideo = src && src.startsWith('data:video/');
 
   const handleDownload = () => {
     const link = document.createElement('a');
     link.href = src;
-    link.download = `ounass-ai-studio-${alt.replace(/\s+/g, '-').toLowerCase()}.png`;
+    link.download = `ounass-ai-studio-${alt.replace(/\s+/g, '-').toLowerCase()}.${isVideo ? 'mp4' : 'png'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -24,7 +25,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, isLoading = false, 
 
   return (
     <div className="relative w-full h-full bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
-      <img src={src} alt={alt} className="w-full h-full object-contain" />
+      {isVideo ? (
+        <video src={src} className="w-full h-full object-contain" controls autoPlay muted loop playsInline />
+      ) : (
+        <img src={src} alt={alt} className="w-full h-full object-contain" />
+      )}
 
       {/* Icons Overlay */}
       <div className="absolute top-4 right-4 flex gap-2">

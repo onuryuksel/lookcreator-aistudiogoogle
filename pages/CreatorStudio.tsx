@@ -12,14 +12,16 @@ import Lookbook from './Lookbook';
 import LookDetail from './LookDetail';
 import ConversationalEditPage from './ConversationalEditPage';
 import LifestyleShootPage from './LifestyleShootPage';
+import VideoCreationPage from './VideoCreationPage';
 
 import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
 import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
-type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot';
+type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot' | 'video-creation';
 
 const CreatorStudio: React.FC = () => {
     // Main state
@@ -49,6 +51,8 @@ const CreatorStudio: React.FC = () => {
 
     // Hooks
     const { showToast } = useToast();
+    const { user, logout } = useAuth();
+
 
     // --- Data Loading ---
     const loadData = useCallback(async () => {
@@ -385,16 +389,22 @@ const CreatorStudio: React.FC = () => {
             <div className="flex items-center gap-4">
                 <nav className="flex gap-4">
                     <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
-                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
+                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
+                    {user?.role === 'admin' && (
+                         <Button variant={'secondary'} onClick={() => window.location.href = '/admin'}>Admin Panel</Button>
+                    )}
                 </nav>
                 <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700"></div>
-                <Dropdown
+                 <Dropdown
                     trigger={
-                        <Button variant="secondary" className="p-2" aria-label="Studio Settings">
+                        <Button variant="secondary" className="p-2" aria-label="User Settings">
                             <SettingsIcon />
                         </Button>
                     }
                 >
+                    <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                        Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
+                    </div>
                     <DropdownItem onClick={handleExportData}>
                         <DownloadIcon /> Export All Data
                     </DropdownItem>
@@ -403,6 +413,10 @@ const CreatorStudio: React.FC = () => {
                     </DropdownItem>
                     <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
                         <TrashIcon /> Clear All Data
+                    </DropdownItem>
+                     <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                    <DropdownItem onClick={logout}>
+                        Logout
                     </DropdownItem>
                 </Dropdown>
             </div>
@@ -469,6 +483,7 @@ const CreatorStudio: React.FC = () => {
                     onUpdate={handleUpdateLook}
                     onEdit={() => setView('edit-look')}
                     onLifestyleShoot={() => setView('lifestyle-shoot')}
+                    onVideoCreation={() => setView('video-creation')}
                 /></div> : null;
             case 'edit-look':
                  return activeLook ? <div className="p-6"><ConversationalEditPage
@@ -478,6 +493,12 @@ const CreatorStudio: React.FC = () => {
                 /></div> : null;
             case 'lifestyle-shoot':
                  return activeLook ? <div className="p-6"><LifestyleShootPage
+                    look={activeLook}
+                    onBack={() => setView('look-detail')}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                /></div> : null;
+             case 'video-creation':
+                 return activeLook ? <div className="p-6"><VideoCreationPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
                     onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}

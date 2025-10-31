@@ -1,0 +1,239 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Look } from '../types';
+import { Button, Spinner } from '../components/common';
+import { ChevronLeftIcon, SaveIcon } from '../components/Icons';
+import { generateVideo, generateVideoDirectorPrompt } from '../services/videoCreationService';
+import ImageViewer from '../components/ImageViewer';
+
+interface VideoCreationPageProps {
+  look: Look;
+  onBack: () => void;
+  onSave: (updatedLook: Look) => void;
+}
+
+type PageStep = 'input' | 'review' | 'result';
+
+const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onSave }) => {
+  const [step, setStep] = useState<PageStep>('input');
+  
+  // Inputs
+  const [startImage, setStartImage] = useState<string>(look.finalImage);
+  const [endImage, setEndImage] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [durationSeconds, setDurationSeconds] = useState<number>(4);
+
+  // AI & Generation State
+  const [directorPrompt, setDirectorPrompt] = useState<string>('');
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isApiKeyReady, setIsApiKeyReady] = useState(false);
+
+  const allImages = useMemo(() => {
+    return [...new Set([look.finalImage, ...(look.variations || [])])].filter(
+      (asset) => asset && !asset.startsWith('data:video/')
+    );
+  }, [look.finalImage, look.variations]);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setIsApiKeyReady(hasKey);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        await window.aistudio.openSelectKey();
+        setIsApiKeyReady(true);
+    }
+  };
+
+  const handleGenerateBrief = async () => {
+    setIsGenerating(true);
+    setLoadingMessage('AI Video Director is crafting a prompt...');
+    setError(null);
+    try {
+      const prompt = await generateVideoDirectorPrompt(look, startImage, endImage, aspectRatio);
+      setDirectorPrompt(prompt);
+      setStep('review');
+    } catch (err) {
+      console.error("Error generating director brief:", err);
+      setError(err instanceof Error ? err.message : 'Failed to generate brief.');
+    } finally {
+      setIsGenerating(false);
+      setLoadingMessage('');
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    setIsGenerating(true);
+    setLoadingMessage('Initializing video generation with Veo...');
+    setError(null);
+    try {
+      const video = await generateVideo(directorPrompt, startImage, endImage, aspectRatio, durationSeconds);
+      setGeneratedVideo(video);
+      setStep('result');
+    } catch (err) {
+      console.error("Error generating video:", err);
+      if (err instanceof Error && err.message === 'API_KEY_INVALID') {
+        setError("Your API key is invalid or requires billing to be enabled. Please select a valid key and try again.");
+        setIsApiKeyReady(false);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to generate video.');
+      }
+    } finally {
+      setIsGenerating(false);
+      setLoadingMessage('');
+    }
+  };
+
+  const handleSave = () => {
+    if (generatedVideo) {
+      const updatedLook: Look = {
+        ...look,
+        variations: [...new Set([...(look.variations || []), generatedVideo])],
+      };
+      onSave(updatedLook);
+    } else {
+      onBack();
+    }
+  };
+
+  const renderContent = () => {
+    switch (step) {
+      case 'input':
+        return (
+          <>
+            <h2 className="text-xl font-bold mb-2">Step 1: Video Setup</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Select the images and settings for your video.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Start Image</label>
+                <div className="flex gap-2 overflow-x-auto p-1">
+                  {allImages.map((img) => (
+                    <img key={img} src={img} onClick={() => setStartImage(img)} className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 ${startImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">End Image (Optional)</label>
+                 <div className="flex gap-2 overflow-x-auto p-1">
+                    <div onClick={() => setEndImage(null)} className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-xs text-center p-2 ${!endImage ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`}>No End Image</div>
+                  {allImages.map((img) => (
+                    <img key={img} src={img} onClick={() => setEndImage(img)} className={`w-20 h-auto rounded-md cursor-pointer ring-2 ring-offset-2 ${endImage === img ? 'ring-zinc-900 dark:ring-zinc-200' : 'ring-transparent'}`} />
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Aspect Ratio</label>
+                  <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')} className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700 dark:bg-zinc-900">
+                    <option value="16:9">16:9 (Landscape)</option>
+                    <option value="9:16">9:16 (Portrait)</option>
+                  </select>
+                </div>
+                 <div>
+                  <label className={`block text-sm font-medium mb-1 ${endImage ? 'text-zinc-400 dark:text-zinc-600' : ''}`}>Duration (seconds)</label>
+                  <select 
+                    value={durationSeconds} 
+                    onChange={(e) => setDurationSeconds(parseInt(e.target.value, 10))} 
+                    className="w-full p-2 border rounded-md bg-transparent dark:border-zinc-700 dark:bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!!endImage}
+                  >
+                    <option value="4">4 seconds</option>
+                    <option value="6">6 seconds</option>
+                    <option value="8">8 seconds</option>
+                  </select>
+                  {endImage && <p className="text-xs text-zinc-500 mt-1">Duration is determined by the start-to-end image transition.</p>}
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      case 'review':
+        return (
+          <>
+            <h2 className="text-xl font-bold mb-2">Step 2: Review Brief</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">The AI Video Director has created a prompt. Review it, then proceed to generate the video.</p>
+            <div className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-md text-sm whitespace-pre-wrap overflow-x-auto max-h-80 mb-4">
+              <p>{directorPrompt}</p>
+            </div>
+          </>
+        );
+      case 'result':
+        return (
+          <>
+            <h2 className="text-xl font-bold mb-2">Step 3: Final Video</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Here is your generated video. You can save it as a new variation for your look.</p>
+          </>
+        );
+    }
+  };
+  
+  const displaySrc = generatedVideo || startImage;
+  const viewerAlt = generatedVideo ? "Generated Video" : "Start Image Preview";
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating}>
+          <ChevronLeftIcon /> {step === 'input' ? 'Back to Look' : 'Back to Setup'}
+        </Button>
+        {step === 'result' && (
+          <Button onClick={handleSave} disabled={isGenerating}>
+            <SaveIcon /> Save as Variation
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-col lg:flex-row gap-8">
+        <div className="lg:w-1/2">
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+            {renderContent()}
+            
+            {!isApiKeyReady && step !== 'result' && (
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/40 border-l-4 border-yellow-400 dark:border-yellow-500 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm space-y-3">
+                    <p className="font-bold">Action Required</p>
+                    <p>To generate videos with Veo, you need to select an API key and ensure billing is enabled for its project.</p>
+                     <p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Learn more about billing.</a></p>
+                    <Button onClick={handleSelectKey} variant="secondary">Select API Key</Button>
+                </div>
+            )}
+
+            {error && (
+              <div className="mt-4 p-3 bg-red-100 dark:bg-red-900/40 border border-red-400 dark:border-red-600 text-red-700 dark:text-red-200 rounded-lg">
+                <p className="font-bold text-sm">An Error Occurred</p>
+                <p className="text-xs">{error}</p>
+              </div>
+            )}
+            <div className="mt-6 flex justify-end">
+              {step === 'input' && (
+                <Button onClick={handleGenerateBrief} disabled={isGenerating || !isApiKeyReady}>
+                  {isGenerating ? <Spinner /> : 'Generate Brief'}
+                </Button>
+              )}
+              {step === 'review' && (
+                <Button onClick={handleGenerateVideo} disabled={isGenerating || !isApiKeyReady}>
+                  {isGenerating ? <Spinner /> : 'Generate Video'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="lg:w-1/2">
+          <div className="sticky top-24">
+            <div className="aspect-[3/4]">
+              <ImageViewer src={displaySrc} alt={viewerAlt} isLoading={isGenerating} loadingText={loadingMessage} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VideoCreationPage;

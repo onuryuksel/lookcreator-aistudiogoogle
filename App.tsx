@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import CreatorStudio from './pages/CreatorStudio';
 import ViewLookboardPage from './pages/ViewLookboardPage';
+import AuthPage from './pages/AuthPage';
+import AdminPage from './pages/AdminPage';
 import { Lookboard, Look } from './types';
 import * as db from './services/dbService';
 import { Spinner } from './components/common';
 import { ToastProvider } from './contexts/ToastContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const App: React.FC = () => {
-    const [page, setPage] = useState<string>('/');
-    const [board, setBoard] = useState<Lookboard | null>(null);
-    const [looks, setLooks] = useState<Look[]>([]);
-    const [loading, setLoading] = useState(true);
+const AppContent: React.FC = () => {
+    const { user, loading: authLoading } = useAuth();
+    const [page, setPage] = React.useState<string>('/');
+    const [board, setBoard] = React.useState<Lookboard | null>(null);
+    const [looks, setLooks] = React.useState<Look[]>([]);
+    const [loading, setLoading] = React.useState(true);
 
-    useEffect(() => {
+    React.useEffect(() => {
         const path = window.location.pathname;
         if (path.startsWith('/board/')) {
             const publicId = path.split('/board/')[1];
@@ -37,11 +41,17 @@ const App: React.FC = () => {
                 }
             };
             loadBoard();
-        } else {
+        } else if (path === '/admin' && user?.role === 'admin') {
+            setPage('admin');
+            setLoading(false);
+        } else if (user) {
             setPage('creator');
             setLoading(false);
+        } else {
+            setPage('auth');
+            setLoading(false);
         }
-    }, []);
+    }, [user]);
 
     const handleUpdateBoard = async (updatedBoard: Lookboard) => {
         const allBoards = await db.getLookboards();
@@ -53,31 +63,37 @@ const App: React.FC = () => {
         }
     };
 
-    const renderAppContent = () => {
-        if (loading) {
-            return (
-                <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500">
-                    <Spinner />
-                    <span className="ml-2">Loading...</span>
-                </div>
-            );
-        }
+    if (loading || authLoading) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500">
+                <Spinner />
+                <span className="ml-2">Loading...</span>
+            </div>
+        );
+    }
 
-        switch (page) {
-            case 'creator':
-                return <CreatorStudio />;
-            case 'board':
-                return board ? <ViewLookboardPage lookboard={board} looks={looks} onUpdate={handleUpdateBoard} /> : <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
-            case 'notfound':
-                 return <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
-            default:
-                return <CreatorStudio />;
-        }
-    };
+    switch (page) {
+        case 'creator':
+            return <CreatorStudio />;
+        case 'board':
+            return board ? <ViewLookboardPage lookboard={board} looks={looks} onUpdate={handleUpdateBoard} /> : <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
+        case 'notfound':
+            return <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 text-zinc-500 text-lg">404 | Lookboard Not Found</div>;
+        case 'admin':
+            return <AdminPage />;
+        case 'auth':
+            return <AuthPage />;
+        default:
+            return <AuthPage />;
+    }
+};
 
+const App: React.FC = () => {
     return (
         <ToastProvider>
-           {renderAppContent()}
+            <AuthProvider>
+                <AppContent />
+            </AuthProvider>
         </ToastProvider>
     );
 };

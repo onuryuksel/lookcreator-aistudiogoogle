@@ -1,4 +1,5 @@
 
+
 // From ounassService.ts and others
 export interface OunassSKU {
   id: number;
@@ -141,4 +142,16 @@ export interface ArtDirectorPrompt {
             makeup: string;
         };
     };
+}
+
+// For Authentication
+export interface User {
+  username: string;
+  email: string;
+  status: 'pending' | 'approved';
+  role: 'user' | 'admin';
+  createdAt: number;
+  // FIX: Added optional password field to align the type with its usage in the auth API routes.
+  // This property is for server-side use only and is stripped before sending user data to the client.
+  password?: string;
 }
