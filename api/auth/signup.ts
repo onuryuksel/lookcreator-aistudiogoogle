@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { User } from '../../types';
 
 // IMPORTANT: Set your admin email here. The first user to sign up with this email gets admin privileges.
-const ADMIN_EMAIL = 'admin@example.com'; 
+const ADMIN_EMAIL = 'oyouksel@altayer.com'; 
 
 export default async function handler(
   request: NextApiRequest,
