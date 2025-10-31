@@ -87,10 +87,34 @@ const CreatorStudio: React.FC = () => {
         setIsLoading(true);
         // Models are still local as they are not user-specific yet
         const loadedModels = await db.getModels();
-        setModels(loadedModels);
 
-        if (loadedModels.length > 0 && !selectedModelId) {
-            setSelectedModelId(loadedModels[0].id);
+        // --- MIGRATION: Ensure all model images are URLs, not base64 ---
+        let modelsUpdated = false;
+        const migrationPromises = loadedModels.map(async (model) => {
+            if (model.imageUrl && model.imageUrl.startsWith('data:image')) {
+                modelsUpdated = true;
+                console.log(`Migrating model image to URL for: ${model.name}`);
+                try {
+                    const imageBlob = await base64toBlob(model.imageUrl);
+                    const imageUrl = await blobService.uploadFile(imageBlob, `model-migrated-${model.id}.png`);
+                    return { ...model, imageUrl };
+                } catch (migrationError) {
+                    console.error(`Failed to migrate model ${model.id}, will keep base64 for now.`, migrationError);
+                    return model; // return original if upload fails
+                }
+            }
+            return model;
+        });
+        const migratedModels = await Promise.all(migrationPromises);
+        if (modelsUpdated) {
+            await db.saveModels(migratedModels);
+            showToast('Updated model images to new format.', 'success');
+        }
+        setModels(migratedModels);
+        // --- END MIGRATION ---
+
+        if (migratedModels.length > 0 && !selectedModelId) {
+            setSelectedModelId(migratedModels[0].id);
         }
 
         try {
@@ -116,10 +140,15 @@ const CreatorStudio: React.FC = () => {
         setIsCreatingModel(true);
         setError(null);
         try {
-            const { imageUrl, name } = await generateModelFromForm(formData);
+            const { imageUrl: imageBase64, name } = await generateModelFromForm(formData);
+            
+            // FIX: Upload model image to blob storage instead of using base64
+            const imageBlob = await base64toBlob(imageBase64);
+            const imageUrl = await blobService.uploadFile(imageBlob, `model-scratch-${Date.now()}.png`);
+
             const newModel: Model = {
                 id: db.generateId(),
-                imageUrl,
+                imageUrl, // Use the URL
                 name: name || formData.name || 'New Model',
                 ...formData
             };
@@ -141,10 +170,15 @@ const CreatorStudio: React.FC = () => {
         setIsCreatingModel(true);
         setError(null);
         try {
-            const { imageUrl, metadata, name: generatedName } = await generateModelFromPhoto([photo], name);
+            const { imageUrl: imageBase64, metadata, name: generatedName } = await generateModelFromPhoto([photo], name);
+
+            // FIX: Upload model image to blob storage instead of using base64
+            const imageBlob = await base64toBlob(imageBase64);
+            const imageUrl = await blobService.uploadFile(imageBlob, `model-photo-${Date.now()}.png`);
+            
             const newModel: Model = {
                 id: db.generateId(),
-                imageUrl,
+                imageUrl, // Use the URL
                 name: name || generatedName,
                 ...metadata
             };
