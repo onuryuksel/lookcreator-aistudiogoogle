@@ -28,11 +28,12 @@ type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-sh
 
 const CreatorStudio: React.FC = () => {
     // Main state
-    const [view, setView] = useState<View>('creator');
+    const [view, setView] = useState<View>('lookbook');
     const [models, setModels] = useState<Model[]>([]);
     const [looks, setLooks] = useState<Look[]>([]);
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [isMigrating, setIsMigrating] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
 
@@ -61,16 +62,18 @@ const CreatorStudio: React.FC = () => {
 
 
     // --- Data Persistence ---
-    const saveAllData = useCallback(async (updatedModels: Model[], updatedLooks: Look[], updatedLookboards: Lookboard[]) => {
+    const saveAllData = useCallback(async (updatedModels: Model[], updatedLooks: Look[], updatedLookboards: Lookboard[], successMessage?: string) => {
         if (!user) return;
+        setIsSaving(true);
         try {
             await dataService.saveLargeData(user.email, updatedModels, updatedLooks, updatedLookboards);
-            // Models are also saved locally
-            await db.saveModels(updatedModels);
-            showToast('Changes saved to cloud.', 'success');
+            showToast(successMessage || 'Changes saved to cloud.', 'success');
         } catch (error) {
             console.error('Failed to save data:', error);
             showToast('Failed to save changes to the cloud.', 'error');
+            throw error;
+        } finally {
+            setIsSaving(false);
         }
     }, [user, showToast]);
 
@@ -312,8 +315,7 @@ const CreatorStudio: React.FC = () => {
             // 4. Update state and save to server
             const updatedLooks = [...looks, newLook];
             setLooks(updatedLooks);
-            await saveAllData(models, updatedLooks, lookboards);
-            showToast("Look saved successfully!", "success");
+            await saveAllData(models, updatedLooks, lookboards, "Look saved successfully!");
     
             // 5. Reset for next creation
             setTryOnSteps([]);
@@ -322,7 +324,6 @@ const CreatorStudio: React.FC = () => {
         } catch (err) {
             console.error("Error saving look:", err);
             setError(err instanceof Error ? err.message : 'An unknown error occurred while saving.');
-            showToast("Failed to save look.", "error");
         } finally {
             setIsGenerating(false);
         }
@@ -353,7 +354,7 @@ const CreatorStudio: React.FC = () => {
     const handleDeleteLook = async (id: number) => {
         const updatedLooks = looks.filter(l => l.id !== id);
         setLooks(updatedLooks);
-        await saveAllData(models, updatedLooks, lookboards);
+        await saveAllData(models, updatedLooks, lookboards, "Look deleted.");
         setView('lookbook');
         setActiveLook(null);
     };
@@ -361,7 +362,7 @@ const CreatorStudio: React.FC = () => {
     // --- Lookboards Management ---
     const handleUpdateLookboards = async (boards: Lookboard[]) => {
         setLookboards(boards);
-        await saveAllData(models, looks, boards);
+        await saveAllData(models, looks, boards, "Lookboards updated.");
     };
 
     const selectedModel = models.find(m => m.id === selectedModelId);
@@ -407,8 +408,7 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm(`This will merge your ${localLooks.length} local look(s) and ${localLookboards.length} local board(s) with your cloud account. Continue?`)) {
             setIsMigrating(true);
             try {
-                await saveAllData(models, mergedLooks, mergedLookboards);
-                showToast('Data successfully synced to your account!', 'success');
+                await saveAllData(models, mergedLooks, mergedLookboards, 'Data successfully synced to your account!');
                 
                 await db.clearLooks();
                 await db.clearLookboards();
@@ -416,7 +416,6 @@ const CreatorStudio: React.FC = () => {
                 await loadData();
             } catch (error) {
                 console.error('Failed to migrate data:', error);
-                showToast('Failed to sync data to the cloud.', 'error');
             } finally {
                 setIsMigrating(false);
             }
@@ -485,10 +484,9 @@ const CreatorStudio: React.FC = () => {
                         importedData.lookboards.forEach((board: Lookboard) => combinedLookboardsMap.set(board.id, board));
                         const mergedLookboards = Array.from(combinedLookboardsMap.values());
 
-                        await saveAllData(mergedModels, mergedLooks, mergedLookboards);
+                        await saveAllData(mergedModels, mergedLooks, mergedLookboards, 'Data successfully merged and imported!');
                         
                         await loadData();
-                        showToast('Data successfully merged and imported!', 'success');
                     } else {
                         throw new Error('Invalid backup file format. Expected keys: models, looks, lookboards.');
                     }
@@ -512,12 +510,10 @@ const CreatorStudio: React.FC = () => {
         if (window.confirm('Are you sure you want to delete ALL your data (local models, and all cloud looks/boards)? This action cannot be undone.')) {
             try {
                 await db.clearModels();
-                await saveAllData([], [], []);
+                await saveAllData([], [], [], 'All data has been cleared.');
                 await loadData();
-                showToast('All data has been cleared.', 'success');
             } catch (error) {
                 console.error('Failed to clear data:', error);
-                showToast('Failed to clear data.', 'error');
             }
         }
     };
@@ -528,6 +524,12 @@ const CreatorStudio: React.FC = () => {
         <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
             <h1 className="text-2xl font-bold">Ounass Look Creator</h1>
             <div className="flex items-center gap-4">
+                 {isSaving && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-500 animate-pulse">
+                        <Spinner />
+                        <span>Saving to cloud...</span>
+                    </div>
+                )}
                 <nav className="flex gap-4">
                     <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
                     <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
@@ -546,16 +548,16 @@ const CreatorStudio: React.FC = () => {
                     <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
                         Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
                     </div>
-                     <DropdownItem onClick={handleMigrateData} disabled={isMigrating}>
+                     <DropdownItem onClick={handleMigrateData} disabled={isMigrating || isSaving}>
                         {isMigrating ? <Spinner/> : <CloudUploadIcon />} {isMigrating ? 'Syncing...' : 'Sync Local Data to Cloud'}
                     </DropdownItem>
-                    <DropdownItem onClick={handleExportData}>
+                    <DropdownItem onClick={handleExportData} disabled={isSaving}>
                         <DownloadIcon /> Export All Data
                     </DropdownItem>
-                    <DropdownItem onClick={handleImportData} disabled={isImporting}>
+                    <DropdownItem onClick={handleImportData} disabled={isImporting || isSaving}>
                         {isImporting ? <Spinner /> : <UploadIcon />} {isImporting ? 'Importing...' : 'Import Data'}
                     </DropdownItem>
-                    <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
+                    <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
                         <TrashIcon /> Clear All Data
                     </DropdownItem>
                      <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
@@ -608,8 +610,9 @@ const CreatorStudio: React.FC = () => {
                             )}
                             {finalLookImage && !isGenerating && (
                                 <div className="mt-6 text-center">
-                                    <Button variant="primary" onClick={handleSaveLook} className="py-3 px-6 text-lg">
-                                        <SaveIcon /> Add to Lookbook
+                                    <Button variant="primary" onClick={handleSaveLook} className="py-3 px-6 text-lg" disabled={isSaving}>
+                                        {isSaving ? <Spinner /> : <SaveIcon />}
+                                        {isSaving ? 'Saving...' : 'Add to Lookbook'}
                                     </Button>
                                 </div>
                             )}
@@ -622,6 +625,8 @@ const CreatorStudio: React.FC = () => {
                     lookboards={lookboards} 
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}
+                    isSaving={isSaving}
+                    onGoToCreator={() => setView('creator')}
                 />;
             case 'look-detail':
                 return activeLook ? <div className="p-6"><LookDetail 
@@ -632,24 +637,28 @@ const CreatorStudio: React.FC = () => {
                     onEdit={() => setView('edit-look')}
                     onLifestyleShoot={() => setView('lifestyle-shoot')}
                     onVideoCreation={() => setView('video-creation')}
+                    isSaving={isSaving}
                 /></div> : null;
             case 'edit-look':
                  return activeLook ? <div className="p-6"><ConversationalEditPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    isSaving={isSaving}
                 /></div> : null;
             case 'lifestyle-shoot':
                  return activeLook ? <div className="p-6"><LifestyleShootPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    isSaving={isSaving}
                 /></div> : null;
              case 'video-creation':
                  return activeLook ? <div className="p-6"><VideoCreationPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
-                    onSave={(updatedLook) => { handleUpdateLook(updatedLook); setView('look-detail'); }}
+                    onSave={(updatedLook) => { handleUpdateLook(updatedLook).then(() => setView('look-detail')); }}
+                    isSaving={isSaving}
                 /></div> : null;
             default:
                 return null;

@@ -12,14 +12,15 @@ import { useToast } from '../contexts/ToastContext';
 interface LookDetailProps {
   look: Look;
   onBack: () => void;
-  onDelete: (id: number) => void;
-  onUpdate: (updatedLook: Look) => void;
+  onDelete: (id: number) => Promise<void>;
+  onUpdate: (updatedLook: Look) => Promise<void>;
   onEdit: () => void;
   onLifestyleShoot: () => void;
   onVideoCreation: () => void;
+  isSaving: boolean;
 }
 
-const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdate, onEdit, onLifestyleShoot, onVideoCreation }) => {
+const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdate, onEdit, onLifestyleShoot, onVideoCreation, isSaving }) => {
   const [selectedImage, setSelectedImage] = useState(look.finalImage);
   const productsScrollContainerRef = useRef<HTMLDivElement>(null);
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -40,18 +41,18 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     setSelectedImage(look.finalImage);
   }, [look.finalImage]);
 
-  const handleSetAsMain = () => {
+  const handleSetAsMain = async () => {
     const updatedLook: Look = {
       ...look,
       finalImage: selectedImage,
       variations: allImages.filter(v => v !== selectedImage),
     };
-    onUpdate(updatedLook);
+    await onUpdate(updatedLook);
   };
   
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this look? This action cannot be undone.')) {
-      onDelete(look.id!);
+      await onDelete(look.id!);
     }
   };
 
@@ -65,7 +66,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             ...look,
             variations: [...new Set([...(look.variations || []), imageUrl])],
         };
-        onUpdate(updatedLook);
+        await onUpdate(updatedLook);
         showToast("New variation saved!", "success");
     } catch (error) {
         console.error("Failed to save new variation:", error);
@@ -76,7 +77,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
     }
   };
 
-    const handleDeleteVariation = (imageToDelete: string) => {
+    const handleDeleteVariation = async (imageToDelete: string) => {
         if (allImages.length <= 1) {
             showToast("You cannot delete the last image of a look.", "error");
             return;
@@ -96,7 +97,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             setSelectedImage(newFinalImage);
         }
         
-        onUpdate(updatedLook);
+        await onUpdate(updatedLook);
         showToast("Variation deleted.", "success");
     };
   
@@ -168,7 +169,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <Button onClick={onBack} variant="secondary">
+        <Button onClick={onBack} variant="secondary" disabled={isSaving}>
           <ChevronLeftIcon /> Back to Lookbook
         </Button>
         <p className="hidden md:block text-sm text-zinc-500 dark:text-zinc-400">
@@ -176,25 +177,25 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
         </p>
         <Dropdown
             trigger={
-                <Button variant="secondary">
+                <Button variant="secondary" disabled={isSaving}>
                     <EllipsisVerticalIcon/>
                     Actions
                 </Button>
             }
         >
-            <DropdownItem onClick={onEdit}>
+            <DropdownItem onClick={onEdit} disabled={isSaving}>
                 <EditIcon/> Edit with AI
             </DropdownItem>
-            <DropdownItem onClick={onLifestyleShoot}>
+            <DropdownItem onClick={onLifestyleShoot} disabled={isSaving}>
                 <ClapperboardIcon/> Create Lifestyle Shoot
             </DropdownItem>
-             <DropdownItem onClick={onVideoCreation}>
+             <DropdownItem onClick={onVideoCreation} disabled={isSaving}>
                 <FilmIcon/> Create Video
             </DropdownItem>
-            <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)}>
+            <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)} disabled={isSaving}>
                 <CropIcon/> Change Aspect Ratio
             </DropdownItem>
-            <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50">
+            <DropdownItem onClick={handleDelete} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
                 <TrashIcon/> Delete Look
             </DropdownItem>
         </Dropdown>
@@ -209,6 +210,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                 <Button 
                   onClick={handleSetAsMain}
                   className="absolute top-4 left-4"
+                  disabled={isSaving}
                 >
                   <StarIcon/> Set as Main
                 </Button>
@@ -275,6 +277,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
                                 }}
                                 className="absolute top-1 right-1 z-10 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-opacity"
                                 aria-label="Delete variation"
+                                disabled={isSaving}
                             >
                                 <XIcon className="h-4 w-4" />
                             </button>
@@ -300,7 +303,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, onBack, onDelete, onUpdat
             onClose={() => setIsAspectRatioModalOpen(false)}
             look={look}
             onSaveVariation={handleSaveNewVariation}
-            isProcessing={isProcessing}
+            isProcessing={isProcessing || isSaving}
         />
        )}
     </div>

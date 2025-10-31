@@ -5,19 +5,18 @@ interface CreateLookboardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (title: string, note?: string) => Promise<void>;
+  isSubmitting: boolean;
 }
 
-const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
         setTitle('');
         setNote('');
-        setIsSubmitting(false);
         setError(null);
     }
   }, [isOpen]);
@@ -25,15 +24,12 @@ const CreateLookboardModal: React.FC<CreateLookboardModalProps> = ({ isOpen, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim()) {
-      setIsSubmitting(true);
       setError(null);
       try {
         await onSubmit(title.trim(), note.trim());
         // Parent will close modal on success
       } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to create board. Please try again.");
-      } finally {
-          setIsSubmitting(false);
       }
     }
   };

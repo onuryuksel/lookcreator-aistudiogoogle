@@ -11,12 +11,13 @@ import { useToast } from '../contexts/ToastContext';
 interface VideoCreationPageProps {
   look: Look;
   onBack: () => void;
-  onSave: (updatedLook: Look) => void;
+  onSave: (updatedLook: Look) => Promise<void>;
+  isSaving: boolean;
 }
 
 type PageStep = 'input' | 'review' | 'result';
 
-const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onSave }) => {
+const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onSave, isSaving }) => {
   const [step, setStep] = useState<PageStep>('input');
   
   const [startImage, setStartImage] = useState<string>(look.finalImage);
@@ -78,14 +79,17 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (generatedVideo) {
-      const updatedLook: Look = {
-        ...look,
-        variations: [...new Set([...(look.variations || []), generatedVideo])],
-      };
-      onSave(updatedLook);
-      showToast("Video saved as a new variation.", "success");
+        try {
+            const updatedLook: Look = {
+                ...look,
+                variations: [...new Set([...(look.variations || []), generatedVideo])],
+            };
+            await onSave(updatedLook);
+        } catch(err) {
+            // Error is handled by parent
+        }
     } else {
       onBack();
     }
@@ -164,16 +168,18 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
   
   const displaySrc = generatedVideo || startImage;
   const viewerAlt = generatedVideo ? "Generated Video" : "Start Image Preview";
+  const currentLoadingText = isSaving ? "Saving variation..." : loadingMessage;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating}>
+        <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating || isSaving}>
           <ChevronLeftIcon /> {step === 'input' ? 'Back to Look' : 'Back to Setup'}
         </Button>
         {step === 'result' && (
-          <Button onClick={handleSave} disabled={isGenerating}>
-            <SaveIcon /> Save as Variation
+          <Button onClick={handleSave} disabled={isGenerating || isSaving}>
+            {isSaving ? <Spinner /> : <SaveIcon />}
+            {isSaving ? 'Saving...' : 'Save as Variation'}
           </Button>
         )}
       </div>
@@ -190,12 +196,12 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
             )}
             <div className="mt-6 flex justify-end">
               {step === 'input' && (
-                <Button onClick={handleGenerateBrief} disabled={isGenerating}>
+                <Button onClick={handleGenerateBrief} disabled={isGenerating || isSaving}>
                   {isGenerating ? <Spinner /> : 'Generate Brief'}
                 </Button>
               )}
               {step === 'review' && (
-                <Button onClick={handleGenerateVideo} disabled={isGenerating}>
+                <Button onClick={handleGenerateVideo} disabled={isGenerating || isSaving}>
                   {isGenerating ? <Spinner /> : 'Generate Video'}
                 </Button>
               )}
@@ -205,7 +211,7 @@ const VideoCreationPage: React.FC<VideoCreationPageProps> = ({ look, onBack, onS
         <div className="lg:w-1/2">
           <div className="sticky top-24">
             <div className="aspect-[3/4]">
-              <ImageViewer src={displaySrc} alt={viewerAlt} isLoading={isGenerating} loadingText={loadingMessage} />
+              <ImageViewer src={displaySrc} alt={viewerAlt} isLoading={isGenerating || isSaving} loadingText={currentLoadingText} />
             </div>
           </div>
         </div>

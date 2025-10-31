@@ -29,13 +29,14 @@ const VISUAL_STYLES = {
 interface LifestyleShootPageProps {
   look: Look;
   onBack: () => void;
-  onSave: (updatedLook: Look) => void;
+  onSave: (updatedLook: Look) => Promise<void>;
+  isSaving: boolean;
 }
 
 type PageStep = 'input' | 'review' | 'result';
 type CreationMode = 'text' | 'image';
 
-const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, onSave }) => {
+const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, onSave, isSaving }) => {
   const [step, setStep] = useState<PageStep>('input');
   const [creationMode, setCreationMode] = useState<CreationMode>('text');
   const [userInput, setUserInput] = useState<LifestyleShootUserInput>({
@@ -115,14 +116,17 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
     }
   };
   
-  const handleSave = () => {
+  const handleSave = async () => {
     if (generatedImage) {
-        const updatedLook: Look = {
-            ...look,
-            variations: [...new Set([...(look.variations || []), generatedImage])],
-        };
-        onSave(updatedLook);
-        showToast("Lifestyle shoot saved as a new variation.", "success");
+        try {
+            const updatedLook: Look = {
+                ...look,
+                variations: [...new Set([...(look.variations || []), generatedImage])],
+            };
+            await onSave(updatedLook);
+        } catch(err) {
+            // error handled by parent
+        }
     } else {
         onBack();
     }
@@ -226,12 +230,13 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
   return (
     <div>
         <div className="flex justify-between items-center mb-4">
-            <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating}>
+            <Button onClick={step === 'input' ? onBack : () => setStep('input')} variant="secondary" disabled={isGenerating || isSaving}>
                 <ChevronLeftIcon /> {step === 'input' ? 'Back to Look' : 'Back to Brief'}
             </Button>
             {step === 'result' && (
-                <Button onClick={handleSave} disabled={isGenerating}>
-                    <SaveIcon /> Save as Variation
+                <Button onClick={handleSave} disabled={isGenerating || isSaving}>
+                    {isSaving ? <Spinner /> : <SaveIcon />}
+                    {isSaving ? 'Saving...' : 'Save as Variation'}
                 </Button>
             )}
         </div>
@@ -247,12 +252,12 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
                     )}
                     <div className="mt-6 flex justify-end">
                         {step === 'input' && (
-                            <Button onClick={handleGenerateBrief} disabled={isGenerating || (creationMode === 'image' && !referenceImage)}>
+                            <Button onClick={handleGenerateBrief} disabled={isGenerating || isSaving || (creationMode === 'image' && !referenceImage)}>
                                 {isGeneratingBrief ? <Spinner /> : 'Generate Brief'}
                             </Button>
                         )}
                          {step === 'review' && (
-                            <Button onClick={handleGenerateImage} disabled={isGenerating}>
+                            <Button onClick={handleGenerateImage} disabled={isGenerating || isSaving}>
                                 {isGeneratingImage ? <Spinner /> : 'Generate Image'}
                             </Button>
                         )}
@@ -266,8 +271,8 @@ const LifestyleShootPage: React.FC<LifestyleShootPageProps> = ({ look, onBack, o
                         <ImageViewer
                             src={generatedImage || look.finalImage}
                             alt="Lifestyle look"
-                            isLoading={isGenerating}
-                            loadingText={isGeneratingBrief ? "AI Art Director is creating the brief..." : "Generating final lifestyle image..."}
+                            isLoading={isGenerating || isSaving}
+                            loadingText={isSaving ? "Saving variation..." : isGeneratingBrief ? "AI Art Director is creating the brief..." : "Generating final lifestyle image..."}
                         />
                     </div>
                 </div>

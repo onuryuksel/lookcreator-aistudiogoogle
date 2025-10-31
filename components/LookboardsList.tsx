@@ -6,9 +6,10 @@ import { ShareIcon, TrashIcon } from './Icons';
 interface LookboardsListProps {
   lookboards: Lookboard[];
   onDelete: (id: number) => void;
+  isSaving: boolean;
 }
 
-const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete }) => {
+const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, isSaving }) => {
   
   const handleCopyLink = (publicId: string) => {
     const url = `${window.location.origin}/board/${publicId}`;
@@ -40,7 +41,7 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete })
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => handleCopyLink(board.publicId)}>
+            <Button variant="secondary" onClick={() => handleCopyLink(board.publicId)} disabled={isSaving}>
               <ShareIcon /> Copy Link
             </Button>
             <Button 
@@ -51,6 +52,7 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete })
                     }
                 }} 
                 className="hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"
+                disabled={isSaving}
             >
               <TrashIcon />
             </Button>

@@ -11,7 +11,8 @@ import { useToast } from '../contexts/ToastContext';
 interface ConversationalEditPageProps {
   look: Look;
   onBack: () => void;
-  onSave: (updatedLook: Look) => void;
+  onSave: (updatedLook: Look) => Promise<void>;
+  isSaving: boolean;
 }
 
 type ConversationTurn = {
@@ -30,7 +31,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 
-const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, onBack, onSave }) => {
+const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, onBack, onSave, isSaving }) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,14 +100,17 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (conversation.length > 0) {
-        const updatedLook: Look = {
-            ...look,
-            variations: [...new Set([...(look.variations || []), latestImage])],
-        };
-        onSave(updatedLook);
-        showToast("Edit saved as a new variation.", "success");
+        try {
+            const updatedLook: Look = {
+                ...look,
+                variations: [...new Set([...(look.variations || []), latestImage])],
+            };
+            await onSave(updatedLook);
+        } catch(err) {
+            // Error toast is handled by the parent saveAllData function
+        }
     } else {
         onBack();
     }
@@ -116,11 +120,12 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
     <div className="flex flex-col lg:flex-row gap-8 h-[calc(100vh-10rem)]">
       <div className="lg:w-1/3 flex flex-col h-full">
          <div className="flex justify-between items-center mb-4 flex-shrink-0">
-            <Button onClick={onBack} variant="secondary">
+            <Button onClick={onBack} variant="secondary" disabled={isSaving}>
                 <ChevronLeftIcon /> Back to Look Details
             </Button>
-            <Button onClick={handleSave} disabled={isGenerating || conversation.length === 0}>
-                <SaveIcon /> Save as Variation
+            <Button onClick={handleSave} disabled={isGenerating || isSaving || conversation.length === 0}>
+                {isSaving ? <Spinner /> : <SaveIcon />}
+                {isSaving ? 'Saving...' : 'Save as Variation'}
             </Button>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 flex-grow flex flex-col">
@@ -158,7 +163,7 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                 )}
                 <div className="flex gap-2 items-center">
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden"/>
-                    <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isGenerating}>
+                    <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isGenerating || isSaving}>
                         <PlusIcon/>
                     </Button>
                     <textarea
@@ -167,9 +172,9 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
                         placeholder="e.g., add these sunglasses..."
                         rows={1}
                         className="flex-grow px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500 disabled:opacity-50 resize-none"
-                        disabled={isGenerating}
+                        disabled={isGenerating || isSaving}
                     />
-                    <Button onClick={handleGenerate} disabled={isGenerating || (!prompt.trim() && !uploadedFile)} className="h-10">
+                    <Button onClick={handleGenerate} disabled={isGenerating || isSaving || (!prompt.trim() && !uploadedFile)} className="h-10">
                         {isGenerating ? <Spinner /> : 'Generate'}
                     </Button>
                 </div>
@@ -181,8 +186,8 @@ const ConversationalEditPage: React.FC<ConversationalEditPageProps> = ({ look, o
         <ImageViewer
           src={latestImage}
           alt="Editable look"
-          isLoading={isGenerating}
-          loadingText="Generating..."
+          isLoading={isGenerating || isSaving}
+          loadingText={isSaving ? 'Saving variation...' : 'Generating...'}
         />
       </div>
     </div>
