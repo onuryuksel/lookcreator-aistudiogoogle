@@ -139,9 +139,6 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
                       className="w-full h-auto object-cover rounded-lg transition-opacity group-hover:opacity-80 block"
                     />
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent rounded-b-lg">
-                      <p className="text-white text-xs font-semibold truncate">Created by: {look.createdByUsername}</p>
-                  </div>
                 </div>
                 <div 
                   onClick={(e) => {

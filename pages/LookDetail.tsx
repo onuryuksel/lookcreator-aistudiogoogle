@@ -203,9 +203,11 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
         <Button onClick={onBack} variant="secondary" disabled={isSaving}>
           <ChevronLeftIcon /> Back to Lookbook
         </Button>
-        <p className="hidden md:block text-sm text-zinc-500 dark:text-zinc-400">
-          Created by {look.createdByUsername} on {new Date(look.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
+        {look.createdByUsername && (
+            <p className="hidden md:block text-sm text-zinc-500 dark:text-zinc-400">
+            Created by {look.createdByUsername} on {new Date(look.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+        )}
         <Dropdown
             trigger={
                 <Button variant="secondary" disabled={isSaving}>
