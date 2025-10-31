@@ -1,6 +1,6 @@
 import { Modality, Type } from '@google/genai';
 import { Look, LifestyleShootUserInput, ArtDirectorPrompt } from '../types';
-import { ai, base64ToGenerativePart, filesToGenerativeParts } from './geminiUtils';
+import { ai, urlToGenerativePart, filesToGenerativeParts } from './geminiUtils';
 
 const ART_DIRECTOR_PROMPT_SCHEMA = {
     type: Type.OBJECT,
@@ -129,7 +129,7 @@ Based on your expert analysis, create the ultimate photoshoot concept.
 `.trim();
     
     console.log('[AI Art Director] Sending prompt generation request...');
-    const imagePart = base64ToGenerativePart(look.finalImage, 'image/jpeg');
+    const imagePart = await urlToGenerativePart(look.finalImage);
     
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -175,7 +175,7 @@ Based on your hyper-detailed "description for a blind person," fill out every fi
 
     console.log('[AI Art Director from Image] Sending prompt generation request...');
     
-    const lookImagePart = base64ToGenerativePart(look.finalImage, 'image/jpeg');
+    const lookImagePart = await urlToGenerativePart(look.finalImage);
     const referenceImageParts = await filesToGenerativeParts([referenceImage]);
 
     const response = await ai.models.generateContent({
@@ -197,7 +197,7 @@ export const generateLifestyleImage = async (
   artDirectorPrompt: ArtDirectorPrompt,
   aspectRatio: string
 ): Promise<string> => {
-    const lookImagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+    const lookImagePart = await urlToGenerativePart(baseImage);
    
     const finalGenerationPrompt = `
 You are an AI photographer creating a hyperrealistic lifestyle image based on a professional art director's plan.

@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { Look } from '../types';
-import { base64ToGenerativePart } from './geminiUtils';
+import { urlToGenerativePart, urlToBase64 } from './geminiUtils';
 
 const getOutfitDescription = (look: Look): string => {
     return look.products.map(p => `- ${p.name} (Brand: ${p.brand}, Type: ${p.class})`).join('\n');
@@ -40,10 +40,10 @@ Example: "An ultra-realistic, cinematic 4k video of a woman wearing a blue silk 
 `.trim();
 
     console.log('[AI Video Director] Sending prompt generation request...');
-    const startImagePart = base64ToGenerativePart(startImage, 'image/jpeg');
+    const startImagePart = await urlToGenerativePart(startImage);
     const parts = [startImagePart, { text: promptForDirector }];
     if (endImage) {
-        parts.push(base64ToGenerativePart(endImage, 'image/jpeg'));
+        parts.push(await urlToGenerativePart(endImage));
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -68,12 +68,12 @@ export const generateVideo = async (
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
         const startImagePart = {
-            imageBytes: startImage.split(',')[1],
+            imageBytes: await urlToBase64(startImage),
             mimeType: 'image/jpeg',
         };
 
         const lastFramePart = endImage ? {
-            imageBytes: endImage.split(',')[1],
+            imageBytes: await urlToBase64(endImage),
             mimeType: 'image/jpeg',
         } : undefined;
 

@@ -1,6 +1,6 @@
 import { Modality } from '@google/genai';
 import { Model, OunassSKU } from '../types';
-import { ai, base64ToGenerativePart } from './geminiUtils';
+import { ai, base64ToGenerativePart, urlToGenerativePart } from './geminiUtils';
 
 /**
  * Categorizes a product based on its name and class to assist in virtual try-on logic.
@@ -230,7 +230,7 @@ The final output must be a single, full-body image that is indistinguishable fro
   
   console.log('[Virtual Try-On] Using revised image generation prompt:', VIRTUAL_TRY_ON_PROMPT);
 
-  const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+  const imagePart = await urlToGenerativePart(baseImage);
   
   // Directly fetch product image to avoid proxy issues, as Ounass CDN seems to allow it.
   let productPart;

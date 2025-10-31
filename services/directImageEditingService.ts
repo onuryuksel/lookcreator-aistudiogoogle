@@ -1,12 +1,12 @@
 import { Modality } from '@google/genai';
-import { ai, base64ToGenerativePart, filesToGenerativeParts } from './geminiUtils';
+import { ai, urlToGenerativePart, filesToGenerativeParts } from './geminiUtils';
 
 
 export const changeImageAspectRatio = async (
   baseImage: string,
   aspectRatio: string
 ): Promise<string> => {
-  const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+  const imagePart = await urlToGenerativePart(baseImage);
   const prompt = `Your task is to change the aspect ratio of this image to ${aspectRatio}. You must intelligently extend the background and scene to fill the new canvas dimensions using generative fill. The original subject (the model, their complete outfit, and immediate surroundings) must remain the central focus, perfectly preserved, and appropriately scaled within the new frame. Do not crop, distort, or change the original subject. The final output must be a seamless, photorealistic image.`;
 
   console.log(`[Aspect Ratio Change] Sending request for ratio: ${aspectRatio}`);
@@ -72,7 +72,7 @@ export const editImageWithPrompt = async (
   baseImage: string,
   prompt: string
 ): Promise<string> => {
-  const imagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+  const imagePart = await urlToGenerativePart(baseImage);
   const fullPrompt = EDIT_PROMPT_TEMPLATE.replace('{PROMPT}', prompt);
   
   console.log('[Image Editing] Sending prompt:', fullPrompt);
@@ -122,7 +122,7 @@ export const editImageWithImageAndPrompt = async (
   guideImage: File,
   prompt: string
 ): Promise<string> => {
-  const baseImagePart = base64ToGenerativePart(baseImage, 'image/jpeg');
+  const baseImagePart = await urlToGenerativePart(baseImage);
   const guideImageParts = await filesToGenerativeParts([guideImage]);
   const fullPrompt = EDIT_PROMPT_TEMPLATE.replace('{PROMPT}', prompt) + "\n\n**Additional Guidance:** Use the second image provided as a visual reference for the style, color, or object to add.";
 
