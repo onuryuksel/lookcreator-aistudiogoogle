@@ -117,50 +117,59 @@ export const importLegacyLooks = async (
         throw new Error("Invalid import file format. Could not parse JSON.");
     }
 
-    // Handle both direct array and object with 'looks' property
-    let legacyData: unknown;
+    let looksToProcess: any[];
     if (Array.isArray(parsedJson)) {
-        legacyData = parsedJson;
+        looksToProcess = parsedJson;
     } else if (parsedJson && typeof parsedJson === 'object' && 'looks' in parsedJson && Array.isArray((parsedJson as {looks: unknown[]}).looks)) {
-        legacyData = (parsedJson as {looks: unknown[]}).looks;
+        looksToProcess = (parsedJson as {looks: unknown[]}).looks;
     } else {
         throw new Error("Invalid import file format. Expected a JSON array of looks, or an object containing a 'looks' array.");
     }
     
-    // Type check after resolving the structure
-    if (!Array.isArray(legacyData)) {
+    if (!Array.isArray(looksToProcess)) {
          throw new Error("Invalid import file format. The 'looks' property must be an array.");
     }
-    const legacyLooks: LegacyLook[] = legacyData as LegacyLook[];
 
     const importedLooks: Look[] = [];
 
     // Process sequentially to avoid potential rate-limiting on the Ounass API
-    for (const legacyLook of legacyLooks) {
-        // Basic validation of the legacy look object
-        if (!legacyLook.productSkus || !Array.isArray(legacyLook.productSkus) || !legacyLook.finalImage) {
-            console.warn("Skipping invalid legacy look object:", legacyLook);
+    for (const lookData of looksToProcess) {
+        if (!lookData || typeof lookData !== 'object' || !lookData.finalImage) {
+            console.warn("Skipping invalid look object (missing finalImage):", lookData);
             continue;
         }
 
+        let skusToFetch: string[] = [];
+
+        // FIX: Handle both legacy format (productSkus) and current format (products array)
+        if (Array.isArray(lookData.products)) {
+            // Current format: extract SKUs from product objects
+            skusToFetch = lookData.products
+                .map((p: any) => p && typeof p === 'object' && typeof p.sku === 'string' ? p.sku : null)
+                .filter((sku): sku is string => !!sku);
+        } else if (Array.isArray(lookData.productSkus)) {
+            // Legacy format: use the array of SKU strings directly
+            skusToFetch = lookData.productSkus.filter((s: any) => typeof s === 'string');
+        }
+
+
         const productData = (await Promise.all(
-            legacyLook.productSkus.map(sku => ounassService.fetchSkuData(sku))
+            skusToFetch.map(sku => ounassService.fetchSkuData(sku))
         )).filter((p): p is OunassSKU => p !== null);
 
-        // Only create a look if we could find product data
-        if (productData.length > 0) {
-            const newLook: Look = {
-                id: db.generateId(),
-                model: defaultModel,
-                products: productData,
-                finalImage: legacyLook.finalImage,
-                variations: [], // Legacy looks don't have variations
-                createdAt: Date.now(),
-            };
-            importedLooks.push(newLook);
-        } else {
-            console.warn(`Skipping legacy look with SKUs [${legacyLook.productSkus.join(', ')}] as no product data could be found.`);
+        if (skusToFetch.length > 0 && productData.length < skusToFetch.length) {
+             console.warn(`Could not find all products for a legacy look. Found ${productData.length}/${skusToFetch.length} SKUs.`);
         }
+
+        const newLook: Look = {
+            id: db.generateId(),
+            model: defaultModel,
+            products: productData,
+            finalImage: lookData.finalImage,
+            variations: Array.isArray(lookData.variations) ? lookData.variations : [],
+            createdAt: Date.now(),
+        };
+        importedLooks.push(newLook);
     }
     
     return importedLooks;
