@@ -48,10 +48,3 @@ export const migrateLegacyLooks = async (): Promise<{ message: string }> => {
     });
     return handleResponse(response);
 };
-
-export const generateTagsForUntaggedLooks = async (): Promise<{ message: string }> => {
-    const response = await fetch('/api/admin/generate-tags', {
-        method: 'POST',
-    });
-    return handleResponse(response);
-};

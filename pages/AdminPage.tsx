@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { getPendingUsers, approveUser, migrateLegacyLooks, generateTagsForUntaggedLooks } from '../services/authService';
+import { getPendingUsers, approveUser, migrateLegacyLooks } from '../services/authService';
 import { Card, Button, Spinner } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -9,7 +9,6 @@ const AdminPage: React.FC = () => {
     const [pendingUsers, setPendingUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMigrating, setIsMigrating] = useState(false);
-    const [isTagging, setIsTagging] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user, logout } = useAuth();
     const { showToast } = useToast();
@@ -57,24 +56,6 @@ const AdminPage: React.FC = () => {
             setError(errorMessage);
         } finally {
             setIsMigrating(false);
-        }
-    };
-
-    const handleGenerateTags = async () => {
-        if (!window.confirm('This will generate AI tags for all untagged looks in the database. This may take some time and consume API quota. Continue?')) {
-            return;
-        }
-        setIsTagging(true);
-        setError(null);
-        try {
-            const result = await generateTagsForUntaggedLooks();
-            showToast(result.message, 'success');
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate tags.';
-            showToast(errorMessage, 'error');
-            setError(errorMessage);
-        } finally {
-            setIsTagging(false);
         }
     };
 
@@ -137,17 +118,6 @@ const AdminPage: React.FC = () => {
                     <Button onClick={handleMigrate} disabled={isMigrating}>
                         {isMigrating && <Spinner />}
                         {isMigrating ? 'Migrating...' : 'Migrate Old Looks to Public'}
-                    </Button>
-                </Card>
-
-                <Card className="mt-6">
-                    <h2 className="text-xl font-semibold mb-2">Bulk Tag Management</h2>
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-                        Use AI to analyze and generate descriptive tags for all existing looks that do not currently have any tags. This is useful for enriching old data for future search features.
-                    </p>
-                    <Button onClick={handleGenerateTags} disabled={isTagging}>
-                        {isTagging && <Spinner />}
-                        {isTagging ? 'Generating Tags...' : 'Generate Tags for Untagged Looks'}
                     </Button>
                 </Card>
             </div>

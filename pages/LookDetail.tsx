@@ -3,12 +3,13 @@ import { Look, LookOverrides } from '../types';
 import * as blobService from '../services/blobService';
 import { base64toBlob } from '../utils';
 import ProductCard from '../components/ProductCard';
-import { Button, Card, Dropdown, DropdownItem } from '../components/common';
+import { Button, Card, Dropdown, DropdownItem, Spinner } from '../components/common';
 import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon, ShareIcon } from '../components/Icons';
 import AspectRatioModal from '../components/AspectRatioModal';
 import ImageViewer from '../components/ImageViewer';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { generateTagsForLook } from '../services/tagGenerationService';
 
 interface LookDetailProps {
   look: Look;
@@ -34,6 +35,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
   const variationsScrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [newTag, setNewTag] = useState('');
 
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
@@ -100,6 +102,29 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
     setNewTag('');
     showToast("Tag added!", "success");
   };
+  
+  const handleGenerateAITags = async () => {
+    setIsGeneratingTags(true);
+    showToast("AI is generating tags...", "success");
+    try {
+        const newTags = await generateTagsForLook(look.finalImage);
+        if (newTags.length > 0) {
+            const updatedLook: Look = {
+                ...look,
+                tags: [...new Set([...(look.tags || []), ...newTags])],
+            };
+            await onUpdate(updatedLook);
+            showToast("AI tags generated and saved!", "success");
+        } else {
+            showToast("AI could not generate any tags for this image.", "error");
+        }
+    } catch (err) {
+        console.error("Error generating AI tags:", err);
+        showToast(err instanceof Error ? err.message : "Failed to generate AI tags.", "error");
+    } finally {
+        setIsGeneratingTags(false);
+    }
+};
 
 
   const handleSaveNewVariation = async (base64Image: string) => {
@@ -360,7 +385,14 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
                             </span>
                         ))
                     ) : (
-                        <p className="text-sm text-zinc-500">No tags yet. Add one below!</p>
+                        <div className="text-sm text-zinc-500 w-full">
+                           <p className="mb-2">No tags yet. Add one below or let AI generate them.</p>
+                            {user?.role === 'admin' && (
+                                <Button onClick={handleGenerateAITags} disabled={isGeneratingTags || isSaving} variant="secondary">
+                                    {isGeneratingTags ? <Spinner /> : 'Generate AI Tags'}
+                                </Button>
+                            )}
+                        </div>
                     )}
                 </div>
                 <div className="flex gap-2">
