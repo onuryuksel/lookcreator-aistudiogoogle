@@ -7,6 +7,7 @@ import { Lookboard, Look, SharedLookboardInstance } from './types';
 import { Spinner } from './components/common';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 
 interface ViewLookboardData {
     lookboard: Lookboard;
@@ -132,7 +133,9 @@ const App: React.FC = () => {
     return (
         <ToastProvider>
             <AuthProvider>
-                <AppContent />
+                <BrandingProvider>
+                    <AppContent />
+                </BrandingProvider>
             </AuthProvider>
         </ToastProvider>
     );

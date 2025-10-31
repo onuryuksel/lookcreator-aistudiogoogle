@@ -16,11 +16,24 @@ export const Card: React.FC<CardProps> = ({ children, className = '', ...props }
 
 
 // Button
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+// FIX: Converted to a generic component to support the 'as' prop for polymorphism.
+// This allows the Button to be rendered as different elements (e.g., a <label>) while maintaining type safety.
+type ButtonOwnProps<C extends React.ElementType> = {
+  as?: C;
   children: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
-}
-export const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', className, ...props }) => {
+};
+
+type ButtonProps<C extends React.ElementType> = ButtonOwnProps<C> & Omit<React.ComponentPropsWithoutRef<C>, keyof ButtonOwnProps<C>>;
+
+export const Button = <C extends React.ElementType = 'button'>({
+  as,
+  children,
+  variant = 'primary',
+  className,
+  ...props
+}: ButtonProps<C>) => {
+  const Component = as || 'button';
   const baseClasses = "px-4 py-2 rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2";
   const variantClasses = {
     primary: 'bg-zinc-900 text-white hover:bg-zinc-700 focus:ring-zinc-500 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus:ring-zinc-400',
@@ -31,9 +44,9 @@ export const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', c
   const finalClassName = `${baseClasses} ${variantClasses[variant]} ${className || ''}`.trim();
 
   return (
-    <button className={finalClassName} {...props}>
+    <Component className={finalClassName} {...props}>
       {children}
-    </button>
+    </Component>
   );
 };
 

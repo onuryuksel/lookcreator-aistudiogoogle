@@ -59,3 +59,12 @@ export const reindexBoards = async (): Promise<{ message: string }> => {
     });
     return handleResponse(response);
 };
+
+export const updateLogo = async (logoBase64: string): Promise<{ message: string }> => {
+    const response = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update-logo', logo: logoBase64 }),
+    });
+    return handleResponse(response);
+};

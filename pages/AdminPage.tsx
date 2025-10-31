@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { getPendingUsers, approveUser, migrateLegacyLooks, reindexBoards } from '../services/authService';
+import { getPendingUsers, approveUser, migrateLegacyLooks, reindexBoards, updateLogo } from '../services/authService';
 import { Card, Button, Spinner } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { useBranding } from '../contexts/BrandingContext';
+
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+    });
+};
 
 const AdminPage: React.FC = () => {
     const [pendingUsers, setPendingUsers] = useState<User[]>([]);
@@ -13,6 +23,10 @@ const AdminPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const { user, logout } = useAuth();
     const { showToast } = useToast();
+    const { logoUrl: currentLogo } = useBranding();
+
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
     const fetchPendingUsers = useCallback(async () => {
         setLoading(true);
@@ -35,7 +49,6 @@ const AdminPage: React.FC = () => {
         try {
             await approveUser(email);
             showToast(`User ${email} has been approved.`, 'success');
-            // Refresh the list
             setPendingUsers(prev => prev.filter(u => u.email !== email));
         } catch (err) {
             showToast(err instanceof Error ? err.message : 'Failed to approve user.', 'error');
@@ -43,9 +56,7 @@ const AdminPage: React.FC = () => {
     };
 
     const handleMigrate = async () => {
-        if (!window.confirm('Are you sure you want to migrate all legacy looks to public? This will assign them to the admin user.')) {
-            return;
-        }
+        if (!window.confirm('Are you sure you want to migrate all legacy looks to public? This will assign them to the admin user.')) return;
         setIsMigrating(true);
         setError(null);
         try {
@@ -59,11 +70,9 @@ const AdminPage: React.FC = () => {
             setIsMigrating(false);
         }
     };
-
+    
     const handleReindex = async () => {
-        if (!window.confirm('This will scan all lookboards and create a fast-access index for share links. This is safe to run multiple times. Continue?')) {
-            return;
-        }
+        if (!window.confirm('This will scan all lookboards and create a fast-access index for share links. This is safe to run multiple times. Continue?')) return;
         setIsIndexing(true);
         setError(null);
         try {
@@ -75,6 +84,32 @@ const AdminPage: React.FC = () => {
             setError(errorMessage);
         } finally {
             setIsIndexing(false);
+        }
+    };
+
+    const handleLogoFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (file.size > 1024 * 100) { // 100KB limit
+                showToast("Logo image must be under 100KB.", "error");
+                return;
+            }
+            const base64 = await fileToBase64(file);
+            setLogoPreview(base64);
+        }
+    };
+    
+    const handleSaveLogo = async () => {
+        if (!logoPreview) return;
+        setIsUploadingLogo(true);
+        try {
+            await updateLogo(logoPreview);
+            showToast("Logo updated successfully! Changes will appear on next page load.", "success");
+            setLogoPreview(null); 
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to update logo.", "error");
+        } finally {
+            setIsUploadingLogo(false);
         }
     };
 
@@ -113,7 +148,7 @@ const AdminPage: React.FC = () => {
                         ) : pendingUsers.length === 0 ? (
                             <p className="text-zinc-500">No users are currently awaiting approval.</p>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
                                 {pendingUsers.map(pUser => (
                                     <div key={pUser.email} className="flex justify-between items-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
                                         <div>
@@ -130,6 +165,34 @@ const AdminPage: React.FC = () => {
                         )}
                     </Card>
                     <div className="space-y-6">
+                         <Card>
+                            <h2 className="text-xl font-semibold mb-2">Branding Settings</h2>
+                            <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+                                Upload a logo to be displayed on shared lookboard pages. (Recommended: PNG, under 100KB)
+                            </p>
+                            <div className="flex items-center gap-4">
+                                <p className="text-sm font-medium">Current Logo:</p>
+                                <div className="p-2 border rounded-md bg-zinc-50 dark:bg-zinc-800">
+                                   {currentLogo ? <img src={currentLogo} alt="Current Logo" className="h-8" /> : 'Default'}
+                                </div>
+                            </div>
+                            {logoPreview && (
+                                <div className="mt-4">
+                                    <p className="text-sm font-medium mb-2">New Logo Preview:</p>
+                                    <div className="p-2 border rounded-md bg-zinc-50 dark:bg-zinc-800 inline-block">
+                                        <img src={logoPreview} alt="New Logo Preview" className="h-8" />
+                                    </div>
+                                </div>
+                            )}
+                            <div className="mt-4 flex items-center gap-2">
+                                <input type="file" accept="image/png, image/jpeg, image/svg+xml" onChange={handleLogoFileChange} id="logo-upload" className="sr-only"/>
+                                <Button as="label" htmlFor="logo-upload" variant="secondary">Choose File</Button>
+                                <Button onClick={handleSaveLogo} disabled={!logoPreview || isUploadingLogo}>
+                                    {isUploadingLogo && <Spinner />}
+                                    {isUploadingLogo ? 'Saving...' : 'Save Logo'}
+                                </Button>
+                            </div>
+                        </Card>
                         <Card>
                             <h2 className="text-xl font-semibold mb-2">Data Indexing</h2>
                             <p className="text-zinc-600 dark:text-zinc-400 mb-4">
@@ -140,7 +203,7 @@ const AdminPage: React.FC = () => {
                                 {isIndexing ? 'Indexing...' : 'Re-index Share Links'}
                             </Button>
                         </Card>
-                        <Card>
+                         <Card>
                             <h2 className="text-xl font-semibold mb-2">Data Migration</h2>
                             <p className="text-zinc-600 dark:text-zinc-400 mb-4">
                                 This will find all older looks (created before the public/private feature) and convert them to public looks assigned to the admin user. This process is safe to run multiple times.

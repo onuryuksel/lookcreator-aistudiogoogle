@@ -26,6 +26,8 @@ export default async function handler(
                 return await migrateLooks(request, response);
             case 'reindex-boards':
                 return await reindexBoards(request, response);
+            case 'update-logo':
+                return await updateLogo(request, response);
             default:
                 return response.status(400).json({ message: 'Invalid or missing action for POST request.' });
         }
@@ -223,5 +225,21 @@ async function reindexBoards(request: NextApiRequest, response: NextApiResponse)
     } catch (error) {
         console.error('Error during lookboard re-indexing:', error);
         return response.status(500).json({ message: 'Internal Server Error during re-indexing.' });
+    }
+}
+
+async function updateLogo(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const { logo } = request.body;
+        if (!logo || typeof logo !== 'string' || !logo.startsWith('data:image')) {
+            return response.status(400).json({ message: 'A valid base64 image string is required.' });
+        }
+
+        await kv.set('app_logo', logo);
+
+        return response.status(200).json({ message: 'Logo updated successfully.' });
+    } catch (error) {
+        console.error('Error updating logo:', error);
+        return response.status(500).json({ message: 'Internal Server Error' });
     }
 }

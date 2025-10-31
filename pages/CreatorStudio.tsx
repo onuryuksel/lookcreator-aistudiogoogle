@@ -23,6 +23,7 @@ import ModelCreationForm from '../components/ModelCreationForm';
 import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon, CloudUploadIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import SaveLookModal from '../components/SaveLookModal';
+import LookboardEditorModal from '../components/LookboardEditorModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -59,6 +60,8 @@ const CreatorStudio: React.FC = () => {
     const [isCreatingModel, setIsCreatingModel] = useState(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const [imageModalUrl, setImageModalUrl] = useState('');
+    const [isEditBoardModalOpen, setIsEditBoardModalOpen] = useState(false);
+    const [boardToEdit, setBoardToEdit] = useState<Lookboard | null>(null);
 
     // Hooks
     const { showToast } = useToast();
@@ -421,6 +424,16 @@ const CreatorStudio: React.FC = () => {
         setLookboards(boards);
         await saveAllData(models, looks, boards, lookOverrides, "Lookboards updated.");
     };
+    
+    const handleEditLookboard = (board: Lookboard) => {
+        setBoardToEdit(board);
+        setIsEditBoardModalOpen(true);
+    };
+    
+    const handleLookboardSaveSuccess = async () => {
+        await loadData();
+    };
+
 
     const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -737,6 +750,7 @@ const CreatorStudio: React.FC = () => {
                     lookOverrides={lookOverrides}
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}
+                    onEditLookboard={handleEditLookboard}
                     isSaving={isSaving}
                     onGoToCreator={() => setView('creator')}
                 />;
@@ -808,6 +822,13 @@ const CreatorStudio: React.FC = () => {
                 onClose={() => setIsImageModalOpen(false)}
                 src={imageModalUrl}
                 alt="Model Image"
+            />
+             <LookboardEditorModal
+                isOpen={isEditBoardModalOpen}
+                onClose={() => setIsEditBoardModalOpen(false)}
+                board={boardToEdit}
+                allUserLooks={looks}
+                onSaveSuccess={handleLookboardSaveSuccess}
             />
         </div>
     );

@@ -1,17 +1,18 @@
 import React from 'react';
 import { Lookboard } from '../types';
 import { Card, Button, Spinner } from './common';
-import { ShareIcon, TrashIcon } from './Icons';
+import { EditIcon, ShareIcon, TrashIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LookboardsListProps {
   lookboards: Lookboard[];
   onDelete: (id: number) => void;
-  onShare: (board: Lookboard) => void; // This will now open the options modal
+  onShare: (board: Lookboard) => void;
+  onEdit: (board: Lookboard) => void;
   isSaving: boolean;
 }
 
-const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, onShare, isSaving }) => {
+const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, onShare, onEdit, isSaving }) => {
   const { user } = useAuth();
   
   if (lookboards.length === 0) {
@@ -42,18 +43,24 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, o
                 Share
               </Button>
               {isCreator && (
-                <Button 
-                    variant="secondary" 
-                    onClick={() => {
-                        if (window.confirm(`Are you sure you want to delete the board "${board.title}"?`)) {
-                            onDelete(board.id!);
-                        }
-                    }} 
-                    className="hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"
-                    disabled={isSaving}
-                >
-                  <TrashIcon />
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={() => onEdit(board)} disabled={isSaving}>
+                    <EditIcon />
+                    Edit
+                  </Button>
+                  <Button 
+                      variant="secondary" 
+                      onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete the board "${board.title}"?`)) {
+                              onDelete(board.id!);
+                          }
+                      }} 
+                      className="hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"
+                      disabled={isSaving}
+                  >
+                    <TrashIcon />
+                  </Button>
+                </>
               )}
             </div>
           </Card>
