@@ -22,16 +22,30 @@ export default async function handler(
         // 3. Fetch user data from the database using a standardized key
         const emailLower = email.toLowerCase();
         const userKey = `user:${emailLower}`;
-        const userData = await kv.get<string>(userKey);
+        const userData = await kv.get(userKey); // Get the raw value from KV
 
         if (!userData) {
             return response.status(404).json({ message: 'Invalid credentials' });
         }
         
-        const user: User = JSON.parse(userData);
+        let user: User;
+        // Defensively check if userData is a string that needs parsing,
+        // or if the KV client returned an already-parsed object.
+        if (typeof userData === 'string') {
+            try {
+                user = JSON.parse(userData);
+            } catch (e) {
+                console.error('Failed to parse user data string:', userData, e);
+                return response.status(500).json({ message: 'Internal Server Error: Corrupted user data.' });
+            }
+        } else if (typeof userData === 'object' && userData !== null) {
+            user = userData as User;
+        } else {
+            console.error('Unexpected user data type from KV:', typeof userData);
+            return response.status(500).json({ message: 'Internal Server Error: Invalid user data format.' });
+        }
 
         // 4. Validate the password (NOTE: This is an insecure plaintext comparison for demo purposes)
-        // WARNING: Comparing plaintext passwords. This is NOT secure and is for demo purposes only.
         const isPasswordValid = user.password === password;
 
         if (!isPasswordValid) {
