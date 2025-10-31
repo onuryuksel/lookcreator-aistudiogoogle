@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Look, Lookboard } from '../../types';
+import { Look, Lookboard } from '../../../types';
 
 export default async function handler(
   request: NextApiRequest,

@@ -79,10 +79,11 @@ const AppContent: React.FC = () => {
         setViewData({ ...viewData, instance: updatedInstance }); // Optimistic UI update
 
         try {
-            const response = await fetch('/api/update-instance', {
+            const response = await fetch('/api/board', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    action: 'update-instance',
                     instanceId: updatedInstance.id,
                     feedbacks: updatedInstance.feedbacks,
                     comments: updatedInstance.comments,

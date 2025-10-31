@@ -28,30 +28,34 @@ export const login = async (email: string, password: string): Promise<User> => {
 };
 
 export const getPendingUsers = async (): Promise<User[]> => {
-    const response = await fetch('/api/admin/users');
+    const response = await fetch('/api/admin?action=get-pending-users');
     const { users } = await handleResponse(response);
     return users;
 };
 
 export const approveUser = async (email: string): Promise<void> => {
-    const response = await fetch('/api/admin/approve', {
+    const response = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ action: 'approve-user', email }),
     });
     await handleResponse(response);
 };
 
 export const migrateLegacyLooks = async (): Promise<{ message: string }> => {
-    const response = await fetch('/api/admin/migrate-looks', {
+    const response = await fetch('/api/admin', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'migrate-looks' }),
     });
     return handleResponse(response);
 };
 
 export const reindexBoards = async (): Promise<{ message: string }> => {
-    const response = await fetch('/api/admin/reindex-boards', {
+    const response = await fetch('/api/admin', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reindex-boards' }),
     });
     return handleResponse(response);
 };

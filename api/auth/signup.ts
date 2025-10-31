@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { User } from '../types';
+import { User } from '../../types';
 import crypto from 'crypto';
 
 // IMPORTANT: Set your admin email here. The first user to sign up with this email gets admin privileges.

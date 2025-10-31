@@ -49,10 +49,14 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
     }
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/share-board', {
+      const response = await fetch('/api/board', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicId: board.publicId, sharedBy: user.email }),
+        body: JSON.stringify({ 
+            action: 'share-board',
+            publicId: board.publicId, 
+            sharedBy: user.email 
+        }),
       });
       if (!response.ok) {
         throw new Error('Failed to create share link.');
