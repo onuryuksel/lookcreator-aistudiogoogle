@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { getPendingUsers, approveUser } from '../services/authService';
+import { getPendingUsers, approveUser, migrateLegacyLooks } from '../services/authService';
 import { Card, Button, Spinner } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -8,6 +8,7 @@ import { useToast } from '../contexts/ToastContext';
 const AdminPage: React.FC = () => {
     const [pendingUsers, setPendingUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isMigrating, setIsMigrating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user, logout } = useAuth();
     const { showToast } = useToast();
@@ -40,6 +41,24 @@ const AdminPage: React.FC = () => {
         }
     };
 
+    const handleMigrate = async () => {
+        if (!window.confirm('Are you sure you want to migrate all legacy looks to public? This will assign them to the admin user.')) {
+            return;
+        }
+        setIsMigrating(true);
+        setError(null);
+        try {
+            const result = await migrateLegacyLooks();
+            showToast(result.message, 'success');
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to migrate looks.';
+            showToast(errorMessage, 'error');
+            setError(errorMessage);
+        } finally {
+            setIsMigrating(false);
+        }
+    };
+
     if (user?.role !== 'admin') {
         return (
             <div className="h-screen w-full flex items-center justify-center">
@@ -54,7 +73,7 @@ const AdminPage: React.FC = () => {
                 <header className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Admin Panel</h1>
-                        <p className="text-zinc-600 dark:text-zinc-400">Manage new user signups.</p>
+                        <p className="text-zinc-600 dark:text-zinc-400">Manage new user signups and data.</p>
                     </div>
                      <div>
                         <Button variant="secondary" onClick={() => window.location.href = '/'}>Back to Studio</Button>
@@ -89,6 +108,17 @@ const AdminPage: React.FC = () => {
                             ))}
                         </div>
                     )}
+                </Card>
+
+                <Card className="mt-6">
+                    <h2 className="text-xl font-semibold mb-2">Data Migration</h2>
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+                        This will find all older looks (created before the public/private feature) and convert them to public looks assigned to the admin user. This process is safe to run multiple times.
+                    </p>
+                    <Button onClick={handleMigrate} disabled={isMigrating}>
+                        {isMigrating && <Spinner />}
+                        {isMigrating ? 'Migrating...' : 'Migrate Old Looks to Public'}
+                    </Button>
                 </Card>
             </div>
         </div>

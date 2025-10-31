@@ -41,3 +41,10 @@ export const approveUser = async (email: string): Promise<void> => {
     });
     await handleResponse(response);
 };
+
+export const migrateLegacyLooks = async (): Promise<{ message: string }> => {
+    const response = await fetch('/api/admin/migrate-looks', {
+        method: 'POST',
+    });
+    return handleResponse(response);
+};
