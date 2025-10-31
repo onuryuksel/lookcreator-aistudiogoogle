@@ -14,9 +14,10 @@ export default async function handler(
   response: NextApiResponse,
 ) {
   try {
-    // The `handleUpload` function from `@vercel/blob/client` needs the raw `request`
-    // object to process the file stream. The incorrect `body: request` line has been removed.
+    // The `handleUpload` function needs both `body` and `request` to point to the
+    // incoming request object to correctly process the file stream when `bodyParser` is disabled.
     const jsonResponse = await handleUpload({
+      body: request,
       request,
       onBeforeGenerateToken: async (pathname: string) => {
         return {
