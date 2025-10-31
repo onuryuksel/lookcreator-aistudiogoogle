@@ -1,7 +1,9 @@
 // FIX: Added `Model` to the import statement to resolve the TypeScript error "Cannot find name 'Model'".
 import { Model, Look, Lookboard } from '../types';
 
-const CHUNK_SIZE = 200; // Number of items per chunk
+// FIX: Drastically reduce chunk size. Look objects can contain large base64 images,
+// so a smaller number of items per chunk is needed to stay under payload limits.
+const CHUNK_SIZE = 10; // Number of items per chunk
 
 const handleApiResponse = async (response: Response) => {
     const responseText = await response.text();
@@ -79,22 +81,19 @@ export const saveLargeData = async (email: string, models: Model[], looks: Look[
         lookboards: lookboardChunks.length,
     };
     
-    // Await all chunk uploads in parallel for speed
-    const uploadPromises = [];
+    // FIX: Process chunks sequentially to prevent overloading the server with concurrent requests
+    // and to ensure each chunk is processed one by one, making the process more robust.
+    for (let i = 0; i < modelChunks.length; i++) {
+        await sendChunk(email, importId, i, chunkCounts.models, 'models', modelChunks[i]);
+    }
 
-    modelChunks.forEach((chunk, index) => {
-        uploadPromises.push(sendChunk(email, importId, index, chunkCounts.models, 'models', chunk));
-    });
+    for (let i = 0; i < lookChunks.length; i++) {
+        await sendChunk(email, importId, i, chunkCounts.looks, 'looks', lookChunks[i]);
+    }
 
-    lookChunks.forEach((chunk, index) => {
-        uploadPromises.push(sendChunk(email, importId, index, chunkCounts.looks, 'looks', chunk));
-    });
-
-    lookboardChunks.forEach((chunk, index) => {
-        uploadPromises.push(sendChunk(email, importId, index, chunkCounts.lookboards, 'lookboards', chunk));
-    });
-    
-    await Promise.all(uploadPromises);
+    for (let i = 0; i < lookboardChunks.length; i++) {
+        await sendChunk(email, importId, i, chunkCounts.lookboards, 'lookboards', lookboardChunks[i]);
+    }
 
     await commitChunks(email, importId, chunkCounts);
 };
