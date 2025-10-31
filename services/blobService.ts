@@ -19,6 +19,8 @@ export const uploadFile = async (file: Blob, filename?: string): Promise<string>
             access: 'public',
             // The API route that will handle the upload and generate the signed URL
             handleUploadUrl: '/api/upload-blob',
+            // Add a random suffix to the filename to prevent overwriting existing files.
+            addRandomSuffix: true,
         });
         
         // The `upload` function returns the final blob result, which includes the public URL.
