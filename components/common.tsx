@@ -49,7 +49,7 @@ export const Button = <C extends React.ElementType = 'button'>({
   // This is a common workaround for a limitation in TypeScript's ability to type-check props for polymorphic components.
   // The component's props are already strictly typed by `ButtonProps`, making this cast safe.
   return (
-    <Component className={finalClassName} {...(props as any)}>
+    <Component className={finalClassName} {...props}>
       {children}
     </Component>
   );

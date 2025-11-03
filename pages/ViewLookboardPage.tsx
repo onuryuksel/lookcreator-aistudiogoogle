@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Look, Lookboard, SharedLookboardInstance } from '../types';
+import { Look, Lookboard, SharedLookboardInstance, LookOverrides } from '../types';
 import LookboardCard from '../components/LookboardCard';
 import { Modal, Button } from '../components/common';
 import ProductCard from '../components/ProductCard';
@@ -10,6 +10,7 @@ interface ViewLookboardData {
     lookboard: Lookboard;
     looks: Look[];
     instance?: SharedLookboardInstance;
+    overrides?: LookOverrides;
 }
 
 interface ViewLookboardPageProps {
@@ -18,7 +19,7 @@ interface ViewLookboardPageProps {
 }
 
 const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate }) => {
-  const { lookboard, looks, instance } = data;
+  const { lookboard, looks, instance, overrides } = data;
   const isFeedbackEnabled = !!instance && !!onUpdate;
   const [selectedLook, setSelectedLook] = useState<Look | null>(null);
 
@@ -82,13 +83,18 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
 
             {looks.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {looks.map((look) => (
-                        <LookboardCard
-                          key={look.id}
-                          look={look}
-                          onImageClick={() => setSelectedLook(look)}
-                        />
-                    ))}
+                    {looks.map((look) => {
+                        const finalImage = overrides?.[look.id]?.finalImage || look.finalImage;
+                        const lookWithOverride = { ...look, finalImage };
+                        
+                        return (
+                            <LookboardCard
+                              key={look.id}
+                              look={lookWithOverride}
+                              onImageClick={() => setSelectedLook(lookWithOverride)}
+                            />
+                        );
+                    })}
                 </div>
             ) : (
                 <div className="text-center py-20 border border-dashed rounded-lg">

@@ -182,6 +182,35 @@ async function handleCommitChunks(request: NextApiRequest, response: NextApiResp
         const oldUserLooks: Look[] = await kv.get(userLooksKey) || [];
         const currentUserLooks = allLooks.filter(l => l.createdBy === emailLower);
         const updatedPublicLooksFromOthers = allLooks.filter(l => l.visibility === 'public' && l.createdBy !== emailLower);
+        
+        // --- NEW: Sync public look changes back to the original creator ---
+        const updatesByCreator = new Map<string, Map<number, Look>>();
+        updatedPublicLooksFromOthers.forEach(look => {
+            const creator = look.createdBy;
+            if (!updatesByCreator.has(creator)) {
+                updatesByCreator.set(creator, new Map());
+            }
+            updatesByCreator.get(creator)!.set(look.id, look);
+        });
+
+        const creatorUpdatePromises = Array.from(updatesByCreator.entries()).map(async ([creatorEmail, updatedLooksMap]) => {
+            const creatorLookKey = `looks:${creatorEmail}`;
+            const creatorLooks = await kv.get<Look[]>(creatorLookKey) || [];
+            
+            const newCreatorLooks = creatorLooks.map(look => 
+                updatedLooksMap.has(look.id) ? updatedLooksMap.get(look.id)! : look
+            );
+
+            updatedLooksMap.forEach((updatedLook, lookId) => {
+                if (!newCreatorLooks.some(l => l.id === lookId)) {
+                    newCreatorLooks.push(updatedLook);
+                }
+            });
+
+            await kv.set(creatorLookKey, newCreatorLooks);
+        });
+        await Promise.all(creatorUpdatePromises);
+        // --- END NEW ---
 
         const oldPublicLooksFromUser = oldUserLooks.filter(l => l.visibility === 'public');
         const newPublicLooksFromUser = currentUserLooks.filter(l => l.visibility === 'public');
