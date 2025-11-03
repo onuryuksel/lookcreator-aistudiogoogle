@@ -98,16 +98,36 @@ async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
             console.error('Unexpected user data type from KV:', typeof userData);
             return response.status(500).json({ message: 'Internal Server Error: Invalid user data format.' });
         }
+        
+        let isPasswordValid = false;
+        let needsUpgrade = false;
 
-        if (!user.salt || !user.hashedPassword) {
-            return response.status(401).json({ message: 'Invalid credentials' });
+        // Modern user with salt and hashed password
+        if (user.salt && user.hashedPassword) {
+            const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
+            isPasswordValid = user.hashedPassword === hash;
+        } 
+        // Legacy user with plaintext password (no salt)
+        else if (user.hashedPassword && !user.salt) {
+            isPasswordValid = user.hashedPassword === password;
+            if (isPasswordValid) {
+                needsUpgrade = true;
+            }
         }
-        const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
-        const isPasswordValid = user.hashedPassword === hash;
 
         if (!isPasswordValid) {
             return response.status(401).json({ message: 'Invalid credentials' });
         }
+
+        // If the legacy user's password was correct, upgrade their account to use hashing.
+        if (needsUpgrade) {
+            const newSalt = crypto.randomBytes(16).toString('hex');
+            const newHashedPassword = crypto.pbkdf2Sync(password, newSalt, 1000, 64, 'sha512').toString('hex');
+            user.salt = newSalt;
+            user.hashedPassword = newHashedPassword;
+            await kv.set(userKey, JSON.stringify(user));
+        }
+
 
         if (user.status !== 'approved') {
             return response.status(403).json({ message: 'Your account is pending approval.' });

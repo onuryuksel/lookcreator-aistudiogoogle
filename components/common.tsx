@@ -43,8 +43,11 @@ export const Button = <C extends React.ElementType = 'button'>({
   
   const finalClassName = `${baseClasses} ${variantClasses[variant]} ${className || ''}`.trim();
 
+  // FIX: Cast props to 'any' to resolve TypeScript error "JSX element type 'Component' does not have any construct or call signatures."
+  // This is a common workaround for a limitation in TypeScript's ability to type-check props for polymorphic components.
+  // The component's props are already strictly typed by `ButtonProps`, making this cast safe.
   return (
-    <Component className={finalClassName} {...props}>
+    <Component className={finalClassName} {...(props as any)}>
       {children}
     </Component>
   );
