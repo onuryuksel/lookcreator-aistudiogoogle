@@ -178,3 +178,15 @@ export interface LegacyLook {
 }
 
 export type LookOverrides = Record<number, { finalImage: string }>;
+
+// For Admin User Statistics
+export interface UserStats {
+    user: User;
+    lookCount: number;
+    productCount: number;
+    boardCount: number;
+    videoCount: number;
+    variationCount: number; // Includes AI edits, lifestyle, videos, etc.
+    lastActivity: number; // timestamp
+    looksPerBoard: number;
+}

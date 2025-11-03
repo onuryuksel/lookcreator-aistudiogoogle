@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, UserStats } from '../types';
 
 const handleResponse = async (response: Response) => {
     const data = await response.json();
@@ -67,4 +67,10 @@ export const updateLogo = async (logoBase64: string): Promise<{ message: string 
         body: JSON.stringify({ action: 'update-logo', logo: logoBase64 }),
     });
     return handleResponse(response);
+};
+
+export const getUserStats = async (): Promise<UserStats[]> => {
+    const response = await fetch('/api/admin?action=get-user-stats');
+    const { stats } = await handleResponse(response);
+    return stats;
 };

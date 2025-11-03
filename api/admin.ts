@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { User, Look, Lookboard } from '../types';
+import { User, Look, Lookboard, UserStats } from '../types';
 
 // --- MAIN HANDLER ---
 export default async function handler(
@@ -11,10 +11,14 @@ export default async function handler(
 
     if (request.method === 'GET') {
         const { action } = request.query;
-        if (action === 'get-pending-users') {
-            return await getPendingUsers(request, response);
+        switch (action) {
+            case 'get-pending-users':
+                return await getPendingUsers(request, response);
+            case 'get-user-stats':
+                return await getUserStats(request, response);
+            default:
+                return response.status(400).json({ message: 'Invalid action for GET request.' });
         }
-        return response.status(400).json({ message: 'Invalid action for GET request.' });
     }
 
     if (request.method === 'POST') {
@@ -38,6 +42,83 @@ export default async function handler(
 
 
 // --- ACTION HANDLERS ---
+async function getUserStats(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const userKeys = await kv.keys('user:*');
+        if (!userKeys || userKeys.length === 0) {
+            return response.status(200).json({ stats: [] });
+        }
+
+        const usersData = await kv.mget<User[]>(...userKeys);
+        const validUsers = usersData.filter((u): u is User => u !== null && typeof u === 'object');
+
+        const statsPromises = validUsers.map(async (user) => {
+            const looksKey = `looks:${user.email}`;
+            const boardsKey = `lookboards:${user.email}`;
+
+            const [looks, privateBoards, publicBoardsMap] = await Promise.all([
+                kv.get<Look[]>(looksKey) || [],
+                kv.get<Lookboard[]>(boardsKey) || [],
+                kv.hgetall<Record<string, Lookboard>>('public_lookboards_hash') || {},
+            ]);
+
+            const userPublicBoards = Object.values(publicBoardsMap)
+                .map(boardData => {
+                    try {
+                        return typeof boardData === 'string' ? JSON.parse(boardData) : boardData;
+                    } catch { return null; }
+                })
+                .filter((board): board is Lookboard => board !== null && board.createdBy === user.email);
+
+            const allBoards = [...privateBoards, ...userPublicBoards];
+            
+            let lastActivity = user.createdAt;
+            let productCount = 0;
+            let variationCount = 0;
+            let videoCount = 0;
+
+            looks.forEach(look => {
+                if (look.createdAt > lastActivity) {
+                    lastActivity = look.createdAt;
+                }
+                productCount += look.products?.length || 0;
+                const variations = look.variations || [];
+                variationCount += variations.length;
+                videoCount += variations.filter(v => v.endsWith('.mp4') || v.startsWith('data:video/')).length;
+            });
+
+            allBoards.forEach(board => {
+                if (board.createdAt > lastActivity) {
+                    lastActivity = board.createdAt;
+                }
+            });
+
+            const lookCount = looks.length;
+            const boardCount = allBoards.length;
+            const looksPerBoard = boardCount > 0 ? lookCount / boardCount : 0;
+            
+            // Sanitize user object
+            const { hashedPassword, salt, password, ...safeUser } = user;
+
+            return {
+                user: safeUser,
+                lookCount,
+                productCount,
+                boardCount,
+                videoCount,
+                variationCount,
+                lastActivity,
+                looksPerBoard,
+            };
+        });
+
+        const stats = await Promise.all(statsPromises);
+        return response.status(200).json({ stats });
+    } catch (error) {
+        console.error('Error fetching user stats:', error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
 
 async function getPendingUsers(request: NextApiRequest, response: NextApiResponse) {
     try {
