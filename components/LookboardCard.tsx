@@ -36,6 +36,14 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
     }
     setIsLoaded(true);
   };
+  
+  const handleVideoLoad = (event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const { videoWidth, videoHeight } = event.currentTarget;
+    if (videoWidth > videoHeight) {
+        setIsLandscape(true);
+    }
+    setIsLoaded(true);
+  };
 
   const isVideo = look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4');
 
@@ -52,7 +60,7 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
             <video 
               src={look.finalImage} 
               className={`w-full h-auto object-cover rounded-lg transition-opacity duration-300 ${isLoaded ? 'static opacity-100' : 'absolute inset-0 opacity-0'}`}
-              onLoadedData={() => setIsLoaded(true)}
+              onLoadedMetadata={handleVideoLoad}
               muted
               autoPlay
               loop
