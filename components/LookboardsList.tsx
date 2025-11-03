@@ -68,7 +68,7 @@ const BoardItem: React.FC<{
                     )}
                 </div>
             </div>
-            {(instances.length > 0 || isCreator) && (
+            {(board.visibility === 'public' || isCreator) && (
                 <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">
                     <button onClick={() => setIsLinksVisible(!isLinksVisible)} className="w-full flex justify-between items-center text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
                         <span>Show Shared Links ({1 + instances.length})</span>
