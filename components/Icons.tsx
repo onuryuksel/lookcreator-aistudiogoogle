@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -19,25 +20,25 @@ const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const UploadIcon: React.FC = () => (
   <Icon>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
+    <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5" />
+    <polyline points="7.5 7.5 12 3 16.5 7.5" />
+    <line x1="12" y1="3" x2="12" y2="16.5" />
   </Icon>
 );
 
 export const CloudUploadIcon: React.FC = () => (
     <Icon>
         <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
-        <path d="M12 12v9" />
-        <path d="m16 16-4-4-4 4" />
+        <polyline points="16 12 12 8 8 12" />
+        <line x1="12" y1="8" x2="12" y2="16" />
     </Icon>
 );
 
 export const DownloadIcon: React.FC = () => (
     <Icon>
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line x1="12" y1="15" x2="12" y2="3" />
+        <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5" />
+        <polyline points="16.5 12 12 16.5 7.5 12" />
+        <line x1="12" y1="16.5" x2="12" y2="3" />
     </Icon>
 );
 

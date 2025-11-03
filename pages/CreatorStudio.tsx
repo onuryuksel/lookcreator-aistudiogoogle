@@ -20,7 +20,7 @@ import VideoCreationPage from './VideoCreationPage';
 
 import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
-import { SaveIcon, SettingsIcon, DownloadIcon, UploadIcon, TrashIcon, CloudUploadIcon } from '../components/Icons';
+import { SaveIcon, SettingsIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import SaveLookModal from '../components/SaveLookModal';
 import LookboardEditorModal from '../components/LookboardEditorModal';
@@ -39,8 +39,6 @@ const CreatorStudio: React.FC = () => {
     const [lookOverrides, setLookOverrides] = useState<LookOverrides>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isMigrating, setIsMigrating] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
 
 
     // Creator view state
@@ -470,207 +468,6 @@ const CreatorStudio: React.FC = () => {
 
     const selectedModel = models.find(m => m.id === selectedModelId);
 
-    // --- Data Management ---
-    const handleMigrateData = async () => {
-        if (!user) {
-            showToast('You must be logged in to sync data.', 'error');
-            return;
-        }
-    
-        const localLooks = await db.getLooks();
-        const localLookboards = await db.getLookboards();
-    
-        if (localLooks.length === 0 && localLookboards.length === 0) {
-            showToast('No local data found to sync.', 'success');
-            return;
-        }
-    
-        const serverLooks = looks;
-        const serverLookboards = lookboards;
-    
-        const combinedLooksMap = new Map<number, Look>();
-        serverLooks.forEach(look => combinedLooksMap.set(look.id, look));
-        localLooks.forEach(look => combinedLooksMap.set(look.id, look));
-        const mergedLooks = Array.from(combinedLooksMap.values());
-    
-        const combinedLookboardsMap = new Map<number, Lookboard>();
-        serverLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
-        localLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
-        const mergedLookboards = Array.from(combinedLookboardsMap.values());
-        
-        const newLooksCount = mergedLooks.length - serverLooks.length;
-        const newBoardsCount = mergedLookboards.length - serverLookboards.length;
-        
-        if (newLooksCount <= 0 && newBoardsCount <= 0) {
-            showToast('Local data is already in sync. Clearing local cache.', 'success');
-            await db.clearLooks();
-            await db.clearLookboards();
-            return;
-        }
-    
-        if (window.confirm(`This will merge your ${localLooks.length} local look(s) and ${localLookboards.length} local board(s) with your cloud account. Continue?`)) {
-            setIsMigrating(true);
-            try {
-                await saveAllData(models, mergedLooks, mergedLookboards, lookOverrides, 'Data successfully synced to your account!');
-                
-                await db.clearLooks();
-                await db.clearLookboards();
-                
-                await loadData();
-            } catch (error) {
-                console.error('Failed to migrate data:', error);
-            } finally {
-                setIsMigrating(false);
-            }
-        }
-    };
-    
-    const handleExportData = async () => {
-        try {
-            const dataToExport = {
-                models: await db.getModels(),
-                looks: looks,
-                lookboards: lookboards,
-            };
-            const jsonString = JSON.stringify(dataToExport, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ounass-studio-backup-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast('Data exported successfully!', 'success');
-        } catch (error) {
-            console.error('Failed to export data:', error);
-            showToast('Failed to export data.', 'error');
-        }
-    };
-
-    const handleImportData = () => {
-        if (!user) {
-            showToast('You must be logged in to import data.', 'error');
-            return;
-        }
-
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                setIsImporting(true);
-                try {
-                    const importedData = JSON.parse(event.target?.result as string);
-                    if (importedData.models && importedData.looks && importedData.lookboards) {
-                        
-                        const existingModels = await db.getModels();
-                        const combinedModelsMap = new Map<number, Model>();
-                        existingModels.forEach(model => combinedModelsMap.set(model.id, model));
-                        importedData.models.forEach((model: Model) => combinedModelsMap.set(model.id, model));
-                        const mergedModels = Array.from(combinedModelsMap.values());
-
-                        const existingLooks = looks;
-                        const combinedLooksMap = new Map<number, Look>();
-                        existingLooks.forEach(look => combinedLooksMap.set(look.id, look));
-                        importedData.looks.forEach((look: Look) => combinedLooksMap.set(look.id, look));
-                        const mergedLooks = Array.from(combinedLooksMap.values());
-
-                        const existingLookboards = lookboards;
-                        const combinedLookboardsMap = new Map<number, Lookboard>();
-                        existingLookboards.forEach(board => combinedLookboardsMap.set(board.id, board));
-                        importedData.lookboards.forEach((board: Lookboard) => combinedLookboardsMap.set(board.id, board));
-                        const mergedLookboards = Array.from(combinedLookboardsMap.values());
-
-                        await saveAllData(mergedModels, mergedLooks, mergedLookboards, lookOverrides, 'Data successfully merged and imported!');
-                        
-                        await loadData();
-                    } else {
-                        throw new Error('Invalid backup file format. Expected keys: models, looks, lookboards.');
-                    }
-                } catch (error) {
-                    console.error('Failed to import data:', error);
-                    showToast(error instanceof Error ? error.message : 'Failed to import data.', 'error');
-                } finally {
-                    setIsImporting(false);
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
-    };
-
-    const handleClearData = async () => {
-        if (!user) {
-             showToast('You must be logged in to clear data.', 'error');
-            return;
-        }
-        if (window.confirm('Are you sure you want to delete ALL your data (local models, and all cloud looks/boards)? This action cannot be undone.')) {
-            try {
-                await db.clearModels();
-                await saveAllData([], [], [], {}, 'All data has been cleared.');
-                await loadData();
-            } catch (error) {
-                console.error('Failed to clear data:', error);
-            }
-        }
-    };
-
-    const handleImportLegacyData = () => {
-        if (!user || user.role !== 'admin') {
-            showToast('You must be an admin to perform this action.', 'error');
-            return;
-        }
-        if (models.length === 0) {
-            showToast("Please create at least one model before importing legacy looks.", "error");
-            return;
-        }
-
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                setIsImporting(true);
-                try {
-                    const fileContent = event.target?.result as string;
-                    if (!fileContent) {
-                        throw new Error("File is empty or could not be read.");
-                    }
-
-                    const newLooks = await dataService.importLegacyLooks(fileContent, models, user);
-                    if (newLooks.length === 0) {
-                        showToast("No valid looks found in the import file.", "success");
-                        setIsImporting(false); 
-                        return;
-                    }
-
-                    const updatedLooks = [...looks, ...newLooks];
-                    setLooks(updatedLooks);
-                    await saveAllData(models, updatedLooks, lookboards, lookOverrides, `Successfully imported ${newLooks.length} legacy look(s)!`);
-                    
-                } catch (error) {
-                    console.error('Failed to import legacy data:', error);
-                    showToast(error instanceof Error ? error.message : 'Failed to import legacy data.', 'error');
-                } finally {
-                    setIsImporting(false);
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
-    };
-
-
     // --- UI Rendering ---
     const renderHeader = () => (
         <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
@@ -700,23 +497,6 @@ const CreatorStudio: React.FC = () => {
                     <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
                         Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
                     </div>
-                     <DropdownItem onClick={handleMigrateData} disabled={isMigrating || isSaving}>
-                        {isMigrating ? <Spinner/> : <CloudUploadIcon />} {isMigrating ? 'Syncing...' : 'Sync Local Data to Cloud'}
-                    </DropdownItem>
-                    <DropdownItem onClick={handleExportData} disabled={isSaving}>
-                        <DownloadIcon /> Export All Data
-                    </DropdownItem>
-                    <DropdownItem onClick={handleImportData} disabled={isImporting || isSaving}>
-                        {isImporting ? <Spinner /> : <UploadIcon />} {isImporting ? 'Importing...' : 'Import Data'}
-                    </DropdownItem>
-                     {user?.role === 'admin' && (
-                         <DropdownItem onClick={handleImportLegacyData} disabled={isImporting || isSaving}>
-                            <UploadIcon /> Import from Old Studio
-                        </DropdownItem>
-                    )}
-                    <DropdownItem onClick={handleClearData} className="text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/50" disabled={isSaving}>
-                        <TrashIcon /> Clear All Data
-                    </DropdownItem>
                      <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
                     <DropdownItem onClick={logout}>
                         Logout
@@ -731,10 +511,6 @@ const CreatorStudio: React.FC = () => {
             return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Loading your studio...</span></div>;
         }
         
-        if (isImporting) {
-             return <div className="flex-grow flex items-center justify-center"><Spinner/> <span className="ml-2">Importing data... This may take a moment.</span></div>;
-        }
-
         switch (view) {
             case 'creator':
                 return (
