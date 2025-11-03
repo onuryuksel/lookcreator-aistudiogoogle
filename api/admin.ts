@@ -26,6 +26,8 @@ export default async function handler(
         switch (action) {
             case 'approve-user':
                 return await approveUser(request, response);
+            case 'decline-user':
+                return await declineUser(request, response);
             case 'migrate-looks':
                 return await migrateLooks(request, response);
             case 'reindex-boards':
@@ -195,6 +197,28 @@ async function approveUser(request: NextApiRequest, response: NextApiResponse) {
         return response.status(200).json({ message: `User ${emailLower} approved successfully.` });
     } catch (error) {
         console.error(error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
+
+async function declineUser(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const { email } = request.body;
+        if (!email) {
+            return response.status(400).json({ message: 'Email is required' });
+        }
+        const emailLower = email.toLowerCase();
+        const userKey = `user:${emailLower}`;
+
+        // Use a pipeline to ensure atomicity
+        const pipeline = kv.pipeline();
+        pipeline.del(userKey);
+        pipeline.srem('pending_users', emailLower);
+        await pipeline.exec();
+
+        return response.status(200).json({ message: `User ${emailLower} declined and deleted successfully.` });
+    } catch (error) {
+        console.error('Error declining user:', error);
         return response.status(500).json({ message: 'Internal Server Error' });
     }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, UserStats } from '../types';
-import { getPendingUsers, approveUser, migrateLegacyLooks, reindexBoards, updateLogo, getUserStats } from '../services/authService';
+import { getPendingUsers, approveUser, declineUser, migrateLegacyLooks, reindexBoards, updateLogo, getUserStats } from '../services/authService';
 import { Card, Button, Spinner } from '../components/common';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -138,6 +138,7 @@ const AdminPage: React.FC = () => {
     const [isMigrating, setIsMigrating] = useState(false);
     const [isIndexing, setIsIndexing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [processingEmail, setProcessingEmail] = useState<string | null>(null);
     const { user, logout } = useAuth();
     const { showToast } = useToast();
     const { logoUrl: currentLogo } = useBranding();
@@ -163,12 +164,30 @@ const AdminPage: React.FC = () => {
     }, [fetchPendingUsers]);
 
     const handleApprove = async (email: string) => {
+        setProcessingEmail(email);
         try {
             await approveUser(email);
             showToast(`User ${email} has been approved.`, 'success');
             setPendingUsers(prev => prev.filter(u => u.email !== email));
         } catch (err) {
             showToast(err instanceof Error ? err.message : 'Failed to approve user.', 'error');
+        } finally {
+            setProcessingEmail(null);
+        }
+    };
+    
+    const handleDecline = async (email: string) => {
+        if (window.confirm(`Are you sure you want to decline and permanently delete the user ${email}? This action cannot be undone.`)) {
+            setProcessingEmail(email);
+            try {
+                await declineUser(email);
+                showToast(`User ${email} has been declined and deleted.`, 'success');
+                setPendingUsers(prev => prev.filter(u => u.email !== email));
+            } catch (err) {
+                showToast(err instanceof Error ? err.message : 'Failed to decline user.', 'error');
+            } finally {
+                setProcessingEmail(null);
+            }
         }
     };
 
@@ -279,9 +298,14 @@ const AdminPage: React.FC = () => {
                                                 <p className="text-sm text-zinc-500">{pUser.email}</p>
                                                 <p className="text-xs text-zinc-400">Signed up: {new Date(pUser.createdAt).toLocaleString()}</p>
                                             </div>
-                                            <Button onClick={() => handleApprove(pUser.email)}>
-                                                Approve
-                                            </Button>
+                                            <div className="flex gap-2">
+                                                <Button variant="secondary" onClick={() => handleDecline(pUser.email)} disabled={processingEmail === pUser.email}>
+                                                    {processingEmail === pUser.email ? <Spinner/> : 'Decline'}
+                                                </Button>
+                                                <Button onClick={() => handleApprove(pUser.email)} disabled={processingEmail === pUser.email}>
+                                                    {processingEmail === pUser.email ? <Spinner/> : 'Approve'}
+                                                </Button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
