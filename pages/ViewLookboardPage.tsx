@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Look, Lookboard, SharedLookboardInstance, LookOverrides } from '../types';
+import { Look, Lookboard, SharedLookboardInstance, LookOverrides, Comment } from '../types';
 import LookboardCard from '../components/LookboardCard';
 import { Modal, Button } from '../components/common';
 import ProductCard from '../components/ProductCard';
@@ -22,11 +22,45 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
   const { lookboard, looks, instance, overrides } = data;
   const isFeedbackEnabled = !!instance && !!onUpdate;
   const [selectedLook, setSelectedLook] = useState<Look | null>(null);
+  const [commentingOnLook, setCommentingOnLook] = useState<Look | null>(null);
+  const [newComment, setNewComment] = useState('');
+
 
   const productsScrollContainerRef = useRef<HTMLDivElement>(null);
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
   const [showProductRightArrow, setShowProductRightArrow] = useState(false);
 
+  const handleFeedback = (lookId: number, feedback: 'liked' | 'disliked') => {
+    if (!instance || !onUpdate) return;
+
+    const newFeedbacks = { ...instance.feedbacks };
+    if (newFeedbacks[lookId] === feedback) {
+      delete newFeedbacks[lookId]; // Toggle off
+    } else {
+      newFeedbacks[lookId] = feedback;
+    }
+    
+    onUpdate({ ...instance, feedbacks: newFeedbacks });
+  };
+
+  const handleAddComment = (lookId: number) => {
+    if (!instance || !onUpdate || !newComment.trim()) return;
+
+    const comment: Comment = {
+      id: Date.now().toString(),
+      author: 'client',
+      text: newComment.trim(),
+      createdAt: Date.now(),
+    };
+
+    const newComments = { ...instance.comments };
+    const lookComments = newComments[lookId] ? [...newComments[lookId]] : [];
+    lookComments.push(comment);
+    newComments[lookId] = lookComments;
+
+    onUpdate({ ...instance, comments: newComments });
+    setNewComment('');
+  };
 
   const handleProductScroll = () => {
     if (productsScrollContainerRef.current) {
@@ -92,6 +126,12 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                               key={look.id}
                               look={lookWithOverride}
                               onImageClick={() => setSelectedLook(lookWithOverride)}
+                              isFeedbackEnabled={isFeedbackEnabled}
+                              feedback={instance?.feedbacks[look.id]}
+                              commentCount={(instance?.comments[look.id] || []).length}
+                              onLike={() => handleFeedback(look.id, 'liked')}
+                              onDislike={() => handleFeedback(look.id, 'disliked')}
+                              onComment={() => setCommentingOnLook(lookWithOverride)}
                             />
                         );
                     })}
@@ -161,6 +201,47 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                          ) : (
                             <p className="text-zinc-500">No products are associated with this look.</p>
                          )}
+                    </div>
+                </div>
+            </Modal>
+        )}
+
+        {commentingOnLook && (
+            <Modal
+                isOpen={!!commentingOnLook}
+                onClose={() => setCommentingOnLook(null)}
+                title="Feedback & Comments"
+            >
+                <div className="flex flex-col md:flex-row gap-6">
+                    <div className="md:w-1/2">
+                        <img src={commentingOnLook.finalImage} alt="Look" className="rounded-lg w-full h-auto object-contain" />
+                    </div>
+                    <div className="md:w-1/2 flex flex-col">
+                        <h3 className="font-bold mb-2">Comments</h3>
+                        <div className="flex-grow space-y-3 overflow-y-auto mb-4 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-md max-h-64">
+                        {(instance?.comments?.[commentingOnLook.id] || []).length > 0 ? (
+                            (instance?.comments?.[commentingOnLook.id] || []).map(comment => (
+                            <div key={comment.id} className="text-sm">
+                                <p className="bg-zinc-200 dark:bg-zinc-700 p-2 rounded-lg inline-block">{comment.text}</p>
+                                <p className="text-xs text-zinc-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
+                            </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-zinc-500 text-center py-4">No comments yet.</p>
+                        )}
+                        </div>
+                        <form onSubmit={(e) => { e.preventDefault(); handleAddComment(commentingOnLook.id); }}>
+                        <div className="flex gap-2">
+                            <textarea
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add your feedback..."
+                            rows={2}
+                            className="flex-grow w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
+                            />
+                            <Button type="submit" disabled={!newComment.trim()}>Send</Button>
+                        </div>
+                        </form>
                     </div>
                 </div>
             </Modal>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Look } from '../types';
-import { TrashIcon } from './Icons';
+import { TrashIcon, ThumbsUpIcon, ThumbsDownIcon, MessageSquareIcon } from './Icons';
 
 interface LookboardCardProps {
   look: Look;
@@ -17,6 +17,13 @@ interface LookboardCardProps {
   onDragLeave?: React.DragEventHandler<HTMLDivElement>;
   onDragEnd?: React.DragEventHandler<HTMLDivElement>;
   isDragging?: boolean;
+  // Feedback props
+  isFeedbackEnabled?: boolean;
+  feedback?: 'liked' | 'disliked';
+  commentCount?: number;
+  onLike?: () => void;
+  onDislike?: () => void;
+  onComment?: () => void;
 }
 
 const LookboardCard: React.FC<LookboardCardProps> = ({ 
@@ -25,6 +32,12 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
   isEditing,
   onDelete,
   isDragging,
+  isFeedbackEnabled,
+  feedback,
+  commentCount = 0,
+  onLike,
+  onDislike,
+  onComment,
   ...dragProps
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -86,6 +99,33 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
               <TrashIcon />
             </button>
           </div>
+        )}
+
+        {isFeedbackEnabled && (
+            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-end items-center gap-2">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onLike?.(); }} 
+                    className={`p-1.5 rounded-full transition-colors ${feedback === 'liked' ? 'bg-blue-500 text-white' : 'bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm'}`}
+                    aria-label="Like"
+                >
+                    <ThumbsUpIcon className="h-4 w-4" />
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDislike?.(); }} 
+                    className={`p-1.5 rounded-full transition-colors ${feedback === 'disliked' ? 'bg-red-500 text-white' : 'bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm'}`}
+                    aria-label="Dislike"
+                >
+                    <ThumbsDownIcon className="h-4 w-4" />
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onComment?.(); }} 
+                    className="p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors flex items-center gap-1.5"
+                    aria-label="Comment"
+                >
+                    <MessageSquareIcon className="h-4 w-4" />
+                    {commentCount > 0 && <span className="text-xs font-bold">{commentCount}</span>}
+                </button>
+            </div>
         )}
       </div>
     </div>
