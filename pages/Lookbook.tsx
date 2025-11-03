@@ -19,10 +19,11 @@ interface LookbookProps {
   onDuplicateLookboard: (publicId: string) => void;
   isSaving: boolean;
   onGoToCreator: () => void;
+  activeTab: 'looks' | 'boards';
+  onTabChange: (tab: 'looks' | 'boards') => void;
 }
 
-const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator }) => {
-  const [activeTab, setActiveTab] = useState<'looks' | 'boards'>('looks');
+const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   
@@ -69,6 +70,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
     setSelectedLookIds(new Set());
     // After creating, immediately open the share flow for the new board.
     handleOpenShareOptions(newBoard);
+    onTabChange('boards');
   };
 
   const handleOpenShareOptions = (board: Lookboard) => {
@@ -88,7 +90,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
       <div className="border-b border-zinc-200 dark:border-zinc-800">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
-            onClick={() => setActiveTab('looks')}
+            onClick={() => onTabChange('looks')}
             className={`${
               activeTab === 'looks'
                 ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-100'
@@ -98,7 +100,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
             My Looks ({looks.length})
           </button>
           <button
-            onClick={() => setActiveTab('boards')}
+            onClick={() => onTabChange('boards')}
             className={`${
               activeTab === 'boards'
                 ? 'border-zinc-900 dark:border-zinc-200 text-zinc-900 dark:text-zinc-100'

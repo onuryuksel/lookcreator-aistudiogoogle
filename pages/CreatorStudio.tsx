@@ -32,6 +32,7 @@ type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-sh
 const CreatorStudio: React.FC = () => {
     // Main state
     const [view, setView] = useState<View>('lookbook');
+    const [activeLookbookTab, setActiveLookbookTab] = useState<'looks' | 'boards'>('looks');
     const [models, setModels] = useState<Model[]>([]);
     const [looks, setLooks] = useState<Look[]>([]);
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
@@ -786,6 +787,8 @@ const CreatorStudio: React.FC = () => {
                     onDuplicateLookboard={handleDuplicateLookboard}
                     isSaving={isSaving}
                     onGoToCreator={() => setView('creator')}
+                    activeTab={activeLookbookTab}
+                    onTabChange={setActiveLookbookTab}
                 />;
             case 'look-detail':
                 return activeLook ? <div className="p-6"><LookDetail 

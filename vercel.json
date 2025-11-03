@@ -2,6 +2,9 @@
   "rewrites": [
     { "source": "/board/public/:path*", "destination": "/api/render" },
     { "source": "/board/instance/:path*", "destination": "/api/render" },
-    { "source": "/((?!api/).*)", "destination": "/" }
+    {
+      "source": "/((?!api/|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/"
+    }
   ]
 }
