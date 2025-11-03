@@ -31,7 +31,7 @@ export default async function handler(
 
 async function shareBoard(request: NextApiRequest, response: NextApiResponse) {
     try {
-        const { publicId, sharedBy, sharedByUsername, clientName } = request.body;
+        const { publicId, sharedBy, sharedByUsername, clientName, title, note } = request.body;
         if (!publicId || !sharedBy || !sharedByUsername) {
             return response.status(400).json({ message: 'Lookboard publicId, sharedBy email, and sharedBy username are required.' });
         }
@@ -52,6 +52,8 @@ async function shareBoard(request: NextApiRequest, response: NextApiResponse) {
             createdAt: Date.now(),
             feedbacks: {},
             comments: {},
+            title: title || undefined,
+            note: note || undefined,
         };
         
         const instanceKey = `instance:${instanceId}`;

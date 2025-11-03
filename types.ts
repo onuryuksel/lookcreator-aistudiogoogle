@@ -91,6 +91,9 @@ export interface SharedLookboardInstance {
     createdAt: number;
     feedbacks: Record<number, 'liked' | 'disliked'>;
     comments: Record<number, Comment[]>;
+    // NEW: Link-specific overrides for title and note
+    title?: string;
+    note?: string;
 }
 
 // From LifestyleShootPage.tsx

@@ -15,8 +15,12 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
   const [isCopied, setIsCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState('');
+  
   const [clientName, setClientName] = useState('');
-  const [view, setView] = useState<'options' | 'getClientName' | 'link'>('options');
+  const [customTitle, setCustomTitle] = useState(board.title);
+  const [customNote, setCustomNote] = useState(board.note || '');
+
+  const [view, setView] = useState<'options' | 'customize' | 'link'>('options');
   
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -26,9 +30,11 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
         setIsCopied(false);
         setGeneratedUrl('');
         setClientName('');
+        setCustomTitle(board.title);
+        setCustomNote(board.note || '');
         setView('options');
     }
-  }, [isOpen]);
+  }, [isOpen, board]);
   
   const handleCopy = (url: string) => {
     navigator.clipboard.writeText(url).then(() => {
@@ -53,6 +59,10 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
         showToast("Please enter a client name.", "error");
         return;
     }
+     if (!customTitle.trim()) {
+        showToast("Please enter a title for the board.", "error");
+        return;
+    }
     setIsGenerating(true);
     try {
       const response = await fetch('/api/board', {
@@ -64,6 +74,8 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
             sharedBy: user.email,
             sharedByUsername: user.username,
             clientName: clientName.trim(),
+            title: customTitle.trim(),
+            note: customNote.trim(),
         }),
       });
       if (!response.ok) {
@@ -100,7 +112,7 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
                         </div>
                         <div
                             className="flex-1 p-4 border-2 rounded-lg cursor-pointer hover:border-zinc-800 dark:hover:border-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                            onClick={() => setView('getClientName')}
+                            onClick={() => setView('customize')}
                         >
                             <h3 className="font-bold">Create Personalized Link (For Feedback)</h3>
                             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
@@ -110,25 +122,46 @@ const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({ isOpen, onClose, 
                     </div>
                 </div>
               );
-          case 'getClientName':
+          case 'customize':
               return (
                   <form onSubmit={(e) => { e.preventDefault(); handleCreatePersonalizedLink(); }}>
-                      <h3 className="font-bold text-lg mb-2">Create Link for Client</h3>
-                      <p className="text-zinc-600 dark:text-zinc-400 mb-4">Enter a name for the client to track who this feedback link is for.</p>
-                      <div>
-                          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Client Name*</label>
-                          <Input
-                              value={clientName}
-                              onChange={(e) => setClientName(e.target.value)}
-                              placeholder="e.g., Jane Smith"
-                              required
-                              autoFocus
-                              disabled={isGenerating}
-                          />
+                      <h3 className="font-bold text-lg mb-2">Create Personalized Link</h3>
+                      <p className="text-zinc-600 dark:text-zinc-400 mb-4">Customize the board's details for this specific client.</p>
+                      <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Client Name*</label>
+                            <Input
+                                value={clientName}
+                                onChange={(e) => setClientName(e.target.value)}
+                                placeholder="e.g., Jane Smith"
+                                required
+                                autoFocus
+                                disabled={isGenerating}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Board Title*</label>
+                            <Input
+                                value={customTitle}
+                                onChange={(e) => setCustomTitle(e.target.value)}
+                                required
+                                disabled={isGenerating}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Personal Note (Optional)</label>
+                            <textarea
+                                value={customNote}
+                                onChange={(e) => setCustomNote(e.target.value)}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
+                                disabled={isGenerating}
+                            />
+                        </div>
                       </div>
                       <div className="mt-6 flex justify-end gap-3">
                           <Button variant="secondary" type="button" onClick={() => setView('options')} disabled={isGenerating}>Back</Button>
-                          <Button type="submit" disabled={isGenerating || !clientName.trim()}>
+                          <Button type="submit" disabled={isGenerating || !clientName.trim() || !customTitle.trim()}>
                               {isGenerating ? <Spinner/> : 'Generate & Copy Link'}
                           </Button>
                       </div>

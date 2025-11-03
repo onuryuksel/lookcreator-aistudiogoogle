@@ -98,6 +98,9 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
     }
   }, [selectedLook]);
 
+  const displayTitle = instance?.title || lookboard.title;
+  const displayNote = instance?.note || lookboard.note;
+
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -110,9 +113,9 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
               <h2 
                 className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100'
               >
-                {lookboard.title}
+                {displayTitle}
               </h2>
-              {lookboard.note && <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-3xl mx-auto mt-4">{lookboard.note}</p>}
+              {displayNote && <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-3xl mx-auto mt-4">{displayNote}</p>}
             </div>
 
             {looks.length > 0 ? (
