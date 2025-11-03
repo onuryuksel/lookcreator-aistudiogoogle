@@ -1,7 +1,7 @@
 import React from 'react';
 import { Lookboard } from '../types';
-import { Card, Button, Spinner } from './common';
-import { EditIcon, ShareIcon, TrashIcon } from './Icons';
+import { Card, Button } from './common';
+import { EditIcon, ShareIcon, TrashIcon, CopyIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LookboardsListProps {
@@ -9,10 +9,11 @@ interface LookboardsListProps {
   onDelete: (id: number) => void;
   onShare: (board: Lookboard) => void;
   onEdit: (board: Lookboard) => void;
+  onDuplicate: (publicId: string) => void;
   isSaving: boolean;
 }
 
-const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, onShare, onEdit, isSaving }) => {
+const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, onShare, onEdit, onDuplicate, isSaving }) => {
   const { user } = useAuth();
   
   if (lookboards.length === 0) {
@@ -38,6 +39,10 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, onDelete, o
               </p>
             </div>
             <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => onDuplicate(board.publicId)} disabled={isSaving}>
+                <CopyIcon />
+                Copy
+              </Button>
               <Button variant="secondary" onClick={() => onShare(board)} disabled={isSaving}>
                 <ShareIcon />
                 Share

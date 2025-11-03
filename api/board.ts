@@ -125,7 +125,7 @@ async function duplicateBoard(request: NextApiRequest, response: NextApiResponse
         
         await kv.set(`publicId:${newBoard.publicId}`, newBoard);
         
-        return response.status(201).json({ publicId: newBoard.publicId });
+        return response.status(201).json({ message: 'Board duplicated successfully.', newBoard });
     } catch (error) {
         console.error('Error duplicating board:', error);
         return response.status(500).json({ message: 'Internal Server Error' });

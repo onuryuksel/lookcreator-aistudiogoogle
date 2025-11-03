@@ -16,11 +16,12 @@ interface LookbookProps {
   onSelectLook: (look: Look) => void;
   onUpdateLookboards: (boards: Lookboard[]) => Promise<void>;
   onEditLookboard: (board: Lookboard) => void;
+  onDuplicateLookboard: (publicId: string) => void;
   isSaving: boolean;
   onGoToCreator: () => void;
 }
 
-const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, isSaving, onGoToCreator }) => {
+const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator }) => {
   const [activeTab, setActiveTab] = useState<'looks' | 'boards'>('looks');
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
@@ -182,6 +183,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
               onDelete={handleDeleteLookboard} 
               onShare={handleOpenShareOptions}
               onEdit={onEditLookboard}
+              onDuplicate={onDuplicateLookboard}
               isSaving={isSaving} 
             />
         </div>

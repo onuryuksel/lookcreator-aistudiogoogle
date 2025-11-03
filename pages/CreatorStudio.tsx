@@ -429,6 +429,38 @@ const CreatorStudio: React.FC = () => {
         setBoardToEdit(board);
         setIsEditBoardModalOpen(true);
     };
+
+    const handleDuplicateLookboard = async (publicId: string) => {
+        if (!user) {
+            showToast('You must be logged in to duplicate a board.', 'error');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const response = await fetch('/api/board', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'duplicate-board',
+                    publicId: publicId,
+                    user: user,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to duplicate board.');
+            }
+
+            showToast('Board duplicated successfully!', 'success');
+            await loadData();
+        } catch (error) {
+            console.error('Failed to duplicate board:', error);
+            showToast(error instanceof Error ? error.message : 'Could not duplicate board.', 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
     
     const handleLookboardSaveSuccess = async () => {
         await loadData();
@@ -751,6 +783,7 @@ const CreatorStudio: React.FC = () => {
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}
                     onEditLookboard={handleEditLookboard}
+                    onDuplicateLookboard={handleDuplicateLookboard}
                     isSaving={isSaving}
                     onGoToCreator={() => setView('creator')}
                 />;
