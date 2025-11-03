@@ -59,6 +59,44 @@ async function handleSignup(request: NextApiRequest, response: NextApiResponse) 
         await kv.set(userKey, JSON.stringify(newUser));
         if (!isFirstAdmin) {
             await kv.sadd('pending_users', emailLower);
+
+            // Send notification email to admin
+            const resendApiKey = process.env.RESEND_API_KEY;
+            if (resendApiKey) {
+                try {
+                    const emailPayload = {
+                        from: 'Ounass Look Creator <onboarding@resend.dev>',
+                        to: [ADMIN_EMAIL],
+                        subject: 'New User Awaiting Approval',
+                        html: `
+                            <p>A new user has signed up for the Ounass Look Creator and is awaiting your approval.</p>
+                            <p><strong>Username:</strong> ${username}</p>
+                            <p><strong>Email:</strong> ${emailLower}</p>
+                            <p>Please log in to the admin panel to approve their account.</p>
+                        `,
+                    };
+
+                    const emailResponse = await fetch('https://api.resend.com/emails', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${resendApiKey}`,
+                        },
+                        body: JSON.stringify(emailPayload),
+                    });
+
+                    if (!emailResponse.ok) {
+                        const errorData = await emailResponse.json();
+                        console.error('Failed to send approval notification email:', errorData);
+                    } else {
+                        console.log('Approval notification email sent successfully.');
+                    }
+                } catch (emailError) {
+                    console.error('Error sending notification email via Resend:', emailError);
+                }
+            } else {
+                console.warn('RESEND_API_KEY is not set. Skipping admin notification email.');
+            }
         }
 
         return response.status(201).json({ message: 'User created successfully. Awaiting approval.' });
