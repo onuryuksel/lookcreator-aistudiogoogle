@@ -6,13 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ounass Look Creator</title>
     
+    <!-- SOCIAL_META_TAGS_BLOCK -->
     <!-- Default Social Meta Tags -->
+    <meta property="og:site_name" content="Ounass Look Creator" />
     <meta property="og:title" content="Ounass Look Creator" />
     <meta property="og:description" content="An AI-powered application to create virtual try-ons and model photoshoots." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://storage.googleapis.com/aistudio-hosting/social-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Ounass Look Creator" />
     <meta name="twitter:description" content="An AI-powered application to create virtual try-ons and model photoshoots." />
+    <meta name="twitter:image" content="https://storage.googleapis.com/aistudio-hosting/social-card.png" />
+    <!-- END_SOCIAL_META_TAGS_BLOCK -->
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,62 +37,6 @@
         }
       }
     </script>
-    <script>
-      // This script runs before React to inject dynamic meta tags for social media previews.
-      (async () => {
-        const path = window.location.pathname;
-        let apiUrl = '';
-        
-        if (path.startsWith('/board/public/')) {
-          const publicId = path.split('/board/public/')[1];
-          apiUrl = `/api/board/public/${publicId}`;
-        } else if (path.startsWith('/board/instance/')) {
-          const instanceId = path.split('/board/instance/')[1];
-          apiUrl = `/api/board/instance/${instanceId}`;
-        }
-
-        if (apiUrl) {
-          try {
-            const response = await fetch(apiUrl);
-            if (!response.ok) return;
-
-            const data = await response.json();
-            const { lookboard, looks, overrides } = data;
-            
-            if (lookboard && looks) {
-              const title = lookboard.title;
-              const description = lookboard.note || 'A collection of looks curated for you.';
-              
-              let imageUrl = '';
-              const firstLook = looks[0];
-              if (firstLook) {
-                // Respect the creator's main image choice for the preview
-                imageUrl = (overrides && overrides[firstLook.id]?.finalImage) || firstLook.finalImage;
-              }
-
-              // Create and append meta tags
-              const createMetaTag = (name, content) => {
-                const el = document.createElement('meta');
-                el.setAttribute(name.startsWith('og:') ? 'property' : 'name', name);
-                el.setAttribute('content', content);
-                document.head.appendChild(el);
-              };
-
-              createMetaTag('og:title', title);
-              createMetaTag('twitter:title', title);
-              createMetaTag('og:description', description);
-              createMetaTag('twitter:description', description);
-              if (imageUrl) {
-                createMetaTag('og:image', imageUrl);
-                createMetaTag('twitter:image', imageUrl);
-              }
-            }
-          } catch (error) {
-            console.error('Failed to fetch board data for meta tags:', error);
-          }
-        }
-      })();
-    </script>
   <script type="importmap">
 {
   "imports": {
@@ -101,7 +52,10 @@
     "@vercel/kv": "https://aistudiocdn.com/@vercel/kv@^3.0.0",
     "@vercel/blob/": "https://aistudiocdn.com/@vercel/blob@^2.0.0/",
     "@vercel/blob": "https://aistudiocdn.com/@vercel/blob@^2.0.0",
-    "crypto": "https://aistudiocdn.com/crypto@^1.0.1"
+    "crypto": "https://aistudiocdn.com/crypto@^1.0.1",
+    "process": "https://aistudiocdn.com/process@^0.11.10",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "fs": "https://aistudiocdn.com/fs@^0.0.1-security"
   }
 }
 </script>

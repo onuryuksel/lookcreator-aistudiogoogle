@@ -18,7 +18,10 @@
     "next": "^16.0.1",
     "@vercel/kv": "^3.0.0",
     "@vercel/blob": "^2.0.0",
-    "crypto": "^1.0.1"
+    "crypto": "^1.0.1",
+    "process": "^0.11.10",
+    "path": "^0.12.7",
+    "fs": "^0.0.1-security"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

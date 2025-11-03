@@ -50,7 +50,7 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
 
   return (
     <div
-      className={`relative group transition-opacity ${isLandscape && !isEditing ? 'col-span-2' : ''} ${isDragging ? 'opacity-40' : ''}`}
+      className={`relative group transition-opacity ${isLandscape ? 'col-span-2' : ''} ${isDragging ? 'opacity-40' : ''}`}
       onClick={!isEditing ? onImageClick : undefined}
       {...dragProps}
     >
