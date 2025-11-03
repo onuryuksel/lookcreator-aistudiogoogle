@@ -861,6 +861,7 @@ const CreatorStudio: React.FC = () => {
                 onClose={() => setIsEditBoardModalOpen(false)}
                 board={boardToEdit}
                 allUserLooks={looks}
+                lookOverrides={lookOverrides}
                 onSaveSuccess={handleLookboardSaveSuccess}
             />
         </div>

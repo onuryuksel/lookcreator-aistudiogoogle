@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Look, Lookboard } from '../types';
+import { Look, Lookboard, LookOverrides } from '../types';
 import { Modal, Button, Spinner } from './common';
 import LookboardCard from './LookboardCard';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +11,7 @@ interface LookboardEditorModalProps {
   onClose: () => void;
   board: Lookboard | null;
   allUserLooks: Look[];
+  lookOverrides: LookOverrides;
   onSaveSuccess: () => void;
 }
 
@@ -20,12 +21,18 @@ const AddLooksToBoardModal: React.FC<{
     onAddLooks: (newLooks: Look[]) => void,
     allUserLooks: Look[],
     existingLookIds: Set<number>,
-}> = ({ isOpen, onClose, onAddLooks, allUserLooks, existingLookIds }) => {
+    lookOverrides: LookOverrides,
+}> = ({ isOpen, onClose, onAddLooks, allUserLooks, existingLookIds, lookOverrides }) => {
     const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
 
     const availableLooks = useMemo(() => {
-        return allUserLooks.filter(look => !existingLookIds.has(look.id));
-    }, [allUserLooks, existingLookIds]);
+        return allUserLooks
+            .filter(look => !existingLookIds.has(look.id))
+            .map(look => {
+                const finalImage = lookOverrides[look.id]?.finalImage || look.finalImage;
+                return { ...look, finalImage };
+            });
+    }, [allUserLooks, existingLookIds, lookOverrides]);
 
     const handleToggleSelection = (lookId: number) => {
         setSelectedLookIds(prev => {
@@ -81,7 +88,7 @@ const AddLooksToBoardModal: React.FC<{
 };
 
 
-const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onClose, board, allUserLooks, onSaveSuccess }) => {
+const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onClose, board, allUserLooks, lookOverrides, onSaveSuccess }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
     const [editableLookboard, setEditableLookboard] = useState<Lookboard | null>(board);
@@ -98,11 +105,16 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
         if (board) {
             setEditableLookboard(board);
             const looksForBoard = board.lookIds
-                .map(id => allUserLooks.find(look => look.id === id))
+                .map(id => {
+                    const originalLook = allUserLooks.find(look => look.id === id);
+                    if (!originalLook) return null;
+                    const finalImage = lookOverrides[id]?.finalImage || originalLook.finalImage;
+                    return { ...originalLook, finalImage };
+                })
                 .filter((l): l is Look => !!l);
             setEditableLooks(looksForBoard);
         }
-    }, [board, allUserLooks]);
+    }, [board, allUserLooks, lookOverrides]);
 
     if (!isOpen || !editableLookboard) return null;
 
@@ -144,7 +156,11 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
     };
 
     const handleAddLooks = (newLooks: Look[]) => {
-        setEditableLooks(prev => [...prev, ...newLooks]);
+        const newLooksWithOverrides = newLooks.map(look => {
+            const finalImage = lookOverrides[look.id]?.finalImage || look.finalImage;
+            return { ...look, finalImage };
+        });
+        setEditableLooks(prev => [...prev, ...newLooksWithOverrides]);
     };
 
     const handleDragSort = () => {
@@ -199,7 +215,7 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
                         </div>
                         <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex-grow overflow-y-auto">
                             {editableLooks.length > 0 ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                     {editableLooks.map((look, index) => (
                                         <LookboardCard
                                             key={look.id}
@@ -242,6 +258,7 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
                 onAddLooks={handleAddLooks}
                 allUserLooks={allUserLooks}
                 existingLookIds={new Set(editableLooks.map(l => l.id))}
+                lookOverrides={lookOverrides}
             />
         </>
     );
