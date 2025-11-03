@@ -91,6 +91,8 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
 
     const draggedItemIndex = useRef<number | null>(null);
     const dragOverItemIndex = useRef<number | null>(null);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
 
     useEffect(() => {
         if (board) {
@@ -161,38 +163,43 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
     return (
         <>
             <Modal isOpen={isOpen} onClose={onClose} title="Edit Lookboard">
-                <div className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Board Title</label>
-                        <input
-                            type="text"
-                            value={editableLookboard.title}
-                            onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, title: e.target.value } : null)}
-                            className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
-                            disabled={isSaving}
-                        />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:h-[65vh]">
+                    {/* Left Column: Details */}
+                    <div className="md:col-span-1 space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Board Title</label>
+                            <input
+                                type="text"
+                                value={editableLookboard.title}
+                                onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, title: e.target.value } : null)}
+                                className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
+                                disabled={isSaving}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Personal Note</label>
+                            <textarea
+                                value={editableLookboard.note || ''}
+                                onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, note: e.target.value } : null)}
+                                rows={6}
+                                placeholder="Add a client-facing note..."
+                                className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 resize-none"
+                                disabled={isSaving}
+                            />
+                        </div>
                     </div>
-                     <div>
-                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Personal Note</label>
-                        <textarea
-                            value={editableLookboard.note || ''}
-                            onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, note: e.target.value } : null)}
-                            rows={3}
-                            placeholder="Add a client-facing note..."
-                            className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
-                            disabled={isSaving}
-                        />
-                    </div>
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
+
+                    {/* Right Column: Looks */}
+                    <div className="md:col-span-2 flex flex-col h-full min-h-[40vh]">
+                        <div className="flex justify-between items-center mb-2 flex-shrink-0">
                             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Looks ({editableLooks.length})</label>
                             <Button variant="secondary" onClick={() => setIsAddLooksModalOpen(true)} disabled={isSaving}>
                                 <PlusIcon /> Add Looks
                             </Button>
                         </div>
-                        <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 max-h-[40vh] overflow-y-auto">
+                        <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex-grow overflow-y-auto">
                             {editableLooks.length > 0 ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {editableLooks.map((look, index) => (
                                         <LookboardCard
                                             key={look.id}
@@ -200,15 +207,24 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
                                             isEditing={true}
                                             onDelete={() => handleDeleteLook(look.id)}
                                             draggable={true}
-                                            onDragStart={() => (draggedItemIndex.current = index)}
+                                            onDragStart={() => {
+                                                draggedItemIndex.current = index;
+                                                setDraggedIndex(index);
+                                            }}
                                             onDragEnter={() => (dragOverItemIndex.current = index)}
-                                            onDragEnd={handleDragSort}
+                                            onDragEnd={() => {
+                                                handleDragSort();
+                                                setDraggedIndex(null);
+                                            }}
                                             onDragOver={(e) => e.preventDefault()}
+                                            isDragging={draggedIndex === index}
                                         />
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-center text-zinc-500 py-8">This board has no looks. Click "Add Looks" to get started.</p>
+                                <div className="h-full flex items-center justify-center">
+                                    <p className="text-center text-zinc-500">This board has no looks. <br/> Click "Add Looks" to get started.</p>
+                                </div>
                             )}
                         </div>
                     </div>

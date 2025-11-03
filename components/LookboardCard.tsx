@@ -15,8 +15,8 @@ interface LookboardCardProps {
   onDrop?: React.DragEventHandler<HTMLDivElement>;
   onDragEnter?: React.DragEventHandler<HTMLDivElement>;
   onDragLeave?: React.DragEventHandler<HTMLDivElement>;
-  // FIX: Add onDragEnd to the component's props to allow passing the event handler for drag-and-drop sorting.
   onDragEnd?: React.DragEventHandler<HTMLDivElement>;
+  isDragging?: boolean;
 }
 
 const LookboardCard: React.FC<LookboardCardProps> = ({ 
@@ -24,6 +24,7 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
   onImageClick,
   isEditing,
   onDelete,
+  isDragging,
   ...dragProps
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -49,7 +50,7 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
 
   return (
     <div
-      className={`relative group ${isLandscape && !isEditing ? 'col-span-2' : ''}`}
+      className={`relative group transition-opacity ${isLandscape && !isEditing ? 'col-span-2' : ''} ${isDragging ? 'opacity-40' : ''}`}
       onClick={!isEditing ? onImageClick : undefined}
       {...dragProps}
     >
