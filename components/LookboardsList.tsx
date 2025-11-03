@@ -76,7 +76,7 @@ const BoardItem: React.FC<{
                     </button>
                     {isLinksVisible && (
                         <div className="mt-3 space-y-2 text-sm">
-                            <div className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded">
+                            <div className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/40 rounded">
                                 <div>
                                     <p className="font-semibold">General View-Only Link</p>
                                     <p className="text-xs text-zinc-500">{generalLink}</p>
