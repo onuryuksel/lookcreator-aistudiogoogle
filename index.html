@@ -5,6 +5,15 @@
     <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ounass Look Creator</title>
+    
+    <!-- Default Social Meta Tags -->
+    <meta property="og:title" content="Ounass Look Creator" />
+    <meta property="og:description" content="An AI-powered application to create virtual try-ons and model photoshoots." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Ounass Look Creator" />
+    <meta name="twitter:description" content="An AI-powered application to create virtual try-ons and model photoshoots." />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
@@ -20,6 +29,62 @@
           }
         }
       }
+    </script>
+    <script>
+      // This script runs before React to inject dynamic meta tags for social media previews.
+      (async () => {
+        const path = window.location.pathname;
+        let apiUrl = '';
+        
+        if (path.startsWith('/board/public/')) {
+          const publicId = path.split('/board/public/')[1];
+          apiUrl = `/api/board/public/${publicId}`;
+        } else if (path.startsWith('/board/instance/')) {
+          const instanceId = path.split('/board/instance/')[1];
+          apiUrl = `/api/board/instance/${instanceId}`;
+        }
+
+        if (apiUrl) {
+          try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            const { lookboard, looks, overrides } = data;
+            
+            if (lookboard && looks) {
+              const title = lookboard.title;
+              const description = lookboard.note || 'A collection of looks curated for you.';
+              
+              let imageUrl = '';
+              const firstLook = looks[0];
+              if (firstLook) {
+                // Respect the creator's main image choice for the preview
+                imageUrl = (overrides && overrides[firstLook.id]?.finalImage) || firstLook.finalImage;
+              }
+
+              // Create and append meta tags
+              const createMetaTag = (name, content) => {
+                const el = document.createElement('meta');
+                el.setAttribute(name.startsWith('og:') ? 'property' : 'name', name);
+                el.setAttribute('content', content);
+                document.head.appendChild(el);
+              };
+
+              createMetaTag('og:title', title);
+              createMetaTag('twitter:title', title);
+              createMetaTag('og:description', description);
+              createMetaTag('twitter:description', description);
+              if (imageUrl) {
+                createMetaTag('og:image', imageUrl);
+                createMetaTag('twitter:image', imageUrl);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to fetch board data for meta tags:', error);
+          }
+        }
+      })();
     </script>
   <script type="importmap">
 {
