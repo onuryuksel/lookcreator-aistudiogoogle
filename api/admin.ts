@@ -56,16 +56,25 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
             const looksKey = `looks:${user.email}`;
             const boardsKey = `lookboards:${user.email}`;
 
-            const [looks, privateBoards, publicBoardsMap] = await Promise.all([
-                kv.get<Look[]>(looksKey) || [],
-                kv.get<Lookboard[]>(boardsKey) || [],
-                kv.hgetall<Record<string, Lookboard>>('public_lookboards_hash') || {},
+            const [rawLooks, rawPrivateBoards, publicBoardsMap] = await Promise.all([
+                kv.get<Look[]>(looksKey),
+                kv.get<Lookboard[]>(boardsKey),
+                kv.hgetall<Record<string, Lookboard>>('public_lookboards_hash'),
             ]);
 
-            const userPublicBoards = Object.values(publicBoardsMap)
+            // Defensively filter out null/malformed entries to prevent crashes
+            const looks = (rawLooks || []).filter((l): l is Look => l !== null && typeof l === 'object');
+            const privateBoards = (rawPrivateBoards || []).filter((b): b is Lookboard => b !== null && typeof b === 'object');
+
+            const userPublicBoards = Object.values(publicBoardsMap || {})
                 .map(boardData => {
+                    if (!boardData) return null;
                     try {
-                        return typeof boardData === 'string' ? JSON.parse(boardData) : boardData;
+                        const board = typeof boardData === 'string' ? JSON.parse(boardData) : boardData;
+                        if (board && typeof board === 'object' && board.id) {
+                            return board;
+                        }
+                        return null;
                     } catch { return null; }
                 })
                 .filter((board): board is Lookboard => board !== null && board.createdBy === user.email);
@@ -84,7 +93,7 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
                 productCount += look.products?.length || 0;
                 const variations = look.variations || [];
                 variationCount += variations.length;
-                videoCount += variations.filter(v => v.endsWith('.mp4') || v.startsWith('data:video/')).length;
+                videoCount += variations.filter(v => v && (v.endsWith('.mp4') || v.startsWith('data:video/'))).length;
             });
 
             allBoards.forEach(board => {
