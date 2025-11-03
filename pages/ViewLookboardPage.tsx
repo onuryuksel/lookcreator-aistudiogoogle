@@ -131,6 +131,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                                         autoPlay
                                         loop
                                         muted
+                                        playsInline
                                     />
                                 ) : (
                                     <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
