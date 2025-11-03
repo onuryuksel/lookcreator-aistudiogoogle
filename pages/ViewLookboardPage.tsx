@@ -127,7 +127,6 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                                     <video
                                         src={selectedLook.finalImage}
                                         className="max-w-full max-h-[60vh] object-contain"
-                                        controls
                                         autoPlay
                                         loop
                                         muted
