@@ -20,7 +20,9 @@ export const Card: React.FC<CardProps> = ({ children, className = '', ...props }
 // This allows the Button to be rendered as different elements (e.g., a <label>) while maintaining type safety.
 type ButtonOwnProps<C extends React.ElementType> = {
   as?: C;
-  children: ReactNode;
+  // FIX: Made the 'children' prop optional. The required prop was causing widespread TypeScript
+  // errors where the compiler would fail to correctly infer the presence of JSX children.
+  children?: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
 };
 

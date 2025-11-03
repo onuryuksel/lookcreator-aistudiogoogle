@@ -108,8 +108,8 @@ async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
             isPasswordValid = user.hashedPassword === hash;
         } 
         // Legacy user with plaintext password (no salt)
-        else if (user.hashedPassword && !user.salt) {
-            isPasswordValid = user.hashedPassword === password;
+        else if (user.password) {
+            isPasswordValid = user.password === password;
             if (isPasswordValid) {
                 needsUpgrade = true;
             }
@@ -125,6 +125,7 @@ async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
             const newHashedPassword = crypto.pbkdf2Sync(password, newSalt, 1000, 64, 'sha512').toString('hex');
             user.salt = newSalt;
             user.hashedPassword = newHashedPassword;
+            delete user.password; // Remove the old plaintext password
             await kv.set(userKey, JSON.stringify(user));
         }
 
@@ -133,8 +134,10 @@ async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
             return response.status(403).json({ message: 'Your account is pending approval.' });
         }
 
+        // Clean up the user object before sending it to the client
         delete user.hashedPassword;
         delete user.salt;
+        delete user.password;
 
         return response.status(200).json({ message: 'Login successful', user });
 

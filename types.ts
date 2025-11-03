@@ -164,10 +164,11 @@ export interface User {
   status: 'pending' | 'approved';
   role: 'user' | 'admin';
   createdAt: number;
-  // FIX: Replaced plaintext password with a hashed password and salt for secure storage.
-  // These properties are for server-side use only and are stripped before sending user data to the client.
+  // Modern secure password fields
   hashedPassword?: string;
   salt?: string;
+  // Legacy plaintext password field for migration
+  password?: string;
 }
 
 // For legacy import from old studio
