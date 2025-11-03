@@ -121,7 +121,21 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                 <div>
                     <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6">
                         <div className="bg-zinc-100 dark:bg-zinc-800 sm:rounded-t-lg flex justify-center items-center min-h-[300px]">
-                            <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
+                            {(() => {
+                                const isVideo = selectedLook.finalImage && (selectedLook.finalImage.startsWith('data:video/') || selectedLook.finalImage.endsWith('.mp4'));
+                                return isVideo ? (
+                                    <video
+                                        src={selectedLook.finalImage}
+                                        className="max-w-full max-h-[60vh] object-contain"
+                                        controls
+                                        autoPlay
+                                        loop
+                                        muted
+                                    />
+                                ) : (
+                                    <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
+                                );
+                            })()}
                         </div>
                     </div>
                     <div>
