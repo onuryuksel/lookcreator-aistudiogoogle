@@ -3,7 +3,7 @@
     { "source": "/board/public/:path*", "destination": "/api/render" },
     { "source": "/board/instance/:path*", "destination": "/api/render" },
     {
-      "source": "/((?!api/|.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/((?!api/|.*\\..*).*)",
       "destination": "/"
     }
   ]
