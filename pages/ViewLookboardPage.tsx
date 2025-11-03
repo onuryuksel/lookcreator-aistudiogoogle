@@ -214,7 +214,21 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
             >
                 <div className="flex flex-col md:flex-row gap-6">
                     <div className="md:w-1/2">
-                        <img src={commentingOnLook.finalImage} alt="Look" className="rounded-lg w-full h-auto object-contain" />
+                        {(() => {
+                            const isVideo = commentingOnLook.finalImage && (commentingOnLook.finalImage.startsWith('data:video/') || commentingOnLook.finalImage.endsWith('.mp4'));
+                            return isVideo ? (
+                                <video
+                                    src={commentingOnLook.finalImage}
+                                    className="rounded-lg w-full h-auto object-contain"
+                                    autoPlay
+                                    loop
+                                    muted
+                                    playsInline
+                                />
+                            ) : (
+                                <img src={commentingOnLook.finalImage} alt="Look" className="rounded-lg w-full h-auto object-contain" />
+                            );
+                        })()}
                     </div>
                     <div className="md:w-1/2 flex flex-col">
                         <h3 className="font-bold mb-2">Comments</h3>

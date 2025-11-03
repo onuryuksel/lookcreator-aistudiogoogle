@@ -85,6 +85,13 @@ export const ChevronRightIcon: React.FC = () => (
     </Icon>
 );
 
+// FIX: Add missing ChevronDownIcon component to resolve import error.
+export const ChevronDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props}>
+        <polyline points="6 9 12 15 18 9" />
+    </Icon>
+);
+
 export const XIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
         <line x1="18" y1="6" x2="6" y2="18" />

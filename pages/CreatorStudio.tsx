@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides } from '../types';
+import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides, SharedLookboardInstance } from '../types';
 import * as db from '../services/dbService';
 import * as dataService from '../services/dataService';
 import * as blobService from '../services/blobService';
@@ -36,6 +36,7 @@ const CreatorStudio: React.FC = () => {
     const [models, setModels] = useState<Model[]>([]);
     const [looks, setLooks] = useState<Look[]>([]);
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
+    const [sharedInstances, setSharedInstances] = useState<Record<string, SharedLookboardInstance[]>>({});
     const [lookOverrides, setLookOverrides] = useState<LookOverrides>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -140,6 +141,35 @@ const CreatorStudio: React.FC = () => {
         loadData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]); // Re-load data when user logs in
+    
+    // NEW: Fetch shared instances whenever lookboards are loaded/updated
+    useEffect(() => {
+        const fetchAllInstances = async () => {
+            if (lookboards.length === 0) return;
+
+            const instancePromises = lookboards.map(async (board) => {
+                try {
+                    const response = await fetch(`/api/board/instances/${board.publicId}`);
+                    if (!response.ok) return { publicId: board.publicId, instances: [] };
+                    const data = await response.json();
+                    return { publicId: board.publicId, instances: data.instances || [] };
+                } catch (error) {
+                    console.error(`Failed to fetch instances for board ${board.publicId}:`, error);
+                    return { publicId: board.publicId, instances: [] };
+                }
+            });
+            
+            const results = await Promise.all(instancePromises);
+            const instancesMap = results.reduce((acc, result) => {
+                acc[result.publicId] = result.instances;
+                return acc;
+            }, {} as Record<string, SharedLookboardInstance[]>);
+            
+            setSharedInstances(instancesMap);
+        };
+        fetchAllInstances();
+    }, [lookboards]);
+
 
     // --- Model Management ---
     const handleCreateModelFromScratch = async (formData: Omit<Model, 'imageUrl' | 'id'>) => {
@@ -556,6 +586,7 @@ const CreatorStudio: React.FC = () => {
                 return <Lookbook 
                     looks={looks}
                     lookboards={lookboards} 
+                    sharedInstances={sharedInstances}
                     lookOverrides={lookOverrides}
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}

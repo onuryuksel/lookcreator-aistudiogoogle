@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Look, Lookboard, LookOverrides } from '../types';
+import { Look, Lookboard, LookOverrides, SharedLookboardInstance } from '../types';
 import * as db from '../services/dbService';
 import { Button } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
@@ -12,6 +12,7 @@ import { useToast } from '../contexts/ToastContext';
 interface LookbookProps {
   looks: Look[];
   lookboards: Lookboard[];
+  sharedInstances: Record<string, SharedLookboardInstance[]>;
   lookOverrides: LookOverrides;
   onSelectLook: (look: Look) => void;
   onUpdateLookboards: (boards: Lookboard[]) => Promise<void>;
@@ -23,7 +24,7 @@ interface LookbookProps {
   onTabChange: (tab: 'looks' | 'boards') => void;
 }
 
-const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
+const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   
@@ -182,6 +183,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, lookOverrides, o
            <h2 className="text-2xl font-bold mb-4">Shared Boards</h2>
            <LookboardsList 
               lookboards={lookboards} 
+              sharedInstances={sharedInstances}
               onDelete={handleDeleteLookboard} 
               onShare={handleOpenShareOptions}
               onEdit={onEditLookboard}
