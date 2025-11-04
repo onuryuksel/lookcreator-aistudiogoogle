@@ -117,10 +117,10 @@ export const performVirtualTryOn = async (
 
     switch(category) {
         case 'Bags': {
-            // FIX: The instruction for bag scaling could be ignored. It has been rephrased to be
-            // a CRITICAL instruction with markdown emphasis to ensure the AI prioritizes it for
-            // correct, realistic scaling of the bag relative to the model.
-            let compositingInstructionBuilder = `Composite the isolated bag (${productItemDescription}) onto the model. The model should hold it or wear it (e.g., on the shoulder, cross-body) in a natural, stylish way appropriate for the bag's type (e.g., tote, clutch, backpack). Place it with a realistic sense of scale.`;
+            // FIX: The instruction for bag placement was too ambiguous, leading the AI to change the
+            // model's pose. It's now explicitly instructed to add the bag to the *existing* pose
+            // without altering the model, ensuring accessories are added non-destructively.
+            let compositingInstructionBuilder = `**CRITICAL INSTRUCTION: DO NOT CHANGE THE MODEL'S POSE.** Composite the isolated bag (${productItemDescription}) onto the model as they are currently posed. The bag must be placed realistically on their body (e.g., on the shoulder, slung cross-body, on their back if a backpack) *without* altering the model's stance, posture, or arm positions. The goal is to add the accessory to the existing photograph, not to create a new one.`;
             
             if (product.sizeAndFit && product.sizeAndFit.length > 0) {
                 const sizeInfo = `\n\n**CRITICAL SCALING INSTRUCTION:** The bag's dimensions are: ${product.sizeAndFit.join('; ')}. You MUST use these dimensions to render the bag at the correct scale relative to the model. This is essential for realism.`;
