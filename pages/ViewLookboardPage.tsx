@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Look, Lookboard, SharedLookboardInstance, LookOverrides, Comment } from '../types';
+import { Look, Lookboard, SharedLookboardInstance, Comment } from '../types';
 import LookboardCard from '../components/LookboardCard';
 import { Modal, Button } from '../components/common';
 import ProductCard from '../components/ProductCard';
@@ -10,7 +10,6 @@ interface ViewLookboardData {
     lookboard: Lookboard;
     looks: Look[];
     instance?: SharedLookboardInstance;
-    overrides?: LookOverrides;
 }
 
 interface ViewLookboardPageProps {
@@ -18,49 +17,82 @@ interface ViewLookboardPageProps {
   onUpdate?: (updatedInstance: SharedLookboardInstance) => void;
 }
 
+interface CommentsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  look: Look;
+  comments: Comment[];
+  onAddComment: (commentText: string) => void;
+  stylistName: string;
+}
+
+const CommentsModal: React.FC<CommentsModalProps> = ({ isOpen, onClose, look, comments, onAddComment, stylistName }) => {
+    const [newComment, setNewComment] = useState('');
+    const commentsEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if(isOpen) {
+            setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
+    }, [isOpen, comments]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onAddComment(newComment);
+        setNewComment('');
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Feedback for Look`}>
+            <div className="flex flex-col md:flex-row gap-6">
+                <div className="md:w-1/2">
+                    <img src={look.finalImage} alt="Look" className="w-full h-auto object-contain rounded-lg" />
+                </div>
+                <div className="md:w-1/2 flex flex-col max-h-[70vh]">
+                    <h3 className="text-lg font-bold mb-4 flex-shrink-0">Conversation</h3>
+                    <div className="flex-grow space-y-4 overflow-y-auto pr-2 -mr-2 mb-4 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-md">
+                        {comments.length === 0 ? (
+                            <p className="text-zinc-500 text-sm text-center py-8">No comments yet. Be the first to leave feedback!</p>
+                        ) : (
+                            comments.map(comment => (
+                                <div key={comment.id} className={`flex flex-col ${comment.author === 'client' ? 'items-end' : 'items-start'}`}>
+                                    <div className={`rounded-lg px-3 py-2 max-w-sm ${comment.author === 'client' ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
+                                        <p className="text-sm">{comment.text}</p>
+                                    </div>
+                                    <span className="text-xs text-zinc-500 mt-1">
+                                        {comment.author === 'client' ? 'You' : stylistName} • {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </div>
+                            ))
+                        )}
+                        <div ref={commentsEndRef} />
+                    </div>
+                    <form onSubmit={handleSubmit} className="mt-auto flex gap-2 flex-shrink-0">
+                        <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add your comment..."
+                            className="flex-grow w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
+                        />
+                        <Button type="submit" disabled={!newComment.trim()}>Send</Button>
+                    </form>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate }) => {
-  const { lookboard, looks, instance, overrides } = data;
+  const { lookboard, looks, instance } = data;
   const isFeedbackEnabled = !!instance && !!onUpdate;
   const [selectedLook, setSelectedLook] = useState<Look | null>(null);
-  const [commentingOnLook, setCommentingOnLook] = useState<Look | null>(null);
-  const [newComment, setNewComment] = useState('');
-
+  const [lookForComments, setLookForComments] = useState<Look | null>(null);
 
   const productsScrollContainerRef = useRef<HTMLDivElement>(null);
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
   const [showProductRightArrow, setShowProductRightArrow] = useState(false);
 
-  const handleFeedback = (lookId: number, feedback: 'liked' | 'disliked') => {
-    if (!instance || !onUpdate) return;
-
-    const newFeedbacks = { ...instance.feedbacks };
-    if (newFeedbacks[lookId] === feedback) {
-      delete newFeedbacks[lookId]; // Toggle off
-    } else {
-      newFeedbacks[lookId] = feedback;
-    }
-    
-    onUpdate({ ...instance, feedbacks: newFeedbacks });
-  };
-
-  const handleAddComment = (lookId: number) => {
-    if (!instance || !onUpdate || !newComment.trim()) return;
-
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: 'client',
-      text: newComment.trim(),
-      createdAt: Date.now(),
-    };
-
-    const newComments = { ...instance.comments };
-    const lookComments = newComments[lookId] ? [...newComments[lookId]] : [];
-    lookComments.push(comment);
-    newComments[lookId] = lookComments;
-
-    onUpdate({ ...instance, comments: newComments });
-    setNewComment('');
-  };
 
   const handleProductScroll = () => {
     if (productsScrollContainerRef.current) {
@@ -81,6 +113,39 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
     }
   };
 
+  const handleFeedback = (lookId: number, feedback: 'liked' | 'disliked') => {
+    if (!instance || !onUpdate) return;
+    
+    const currentFeedback = instance.feedbacks[lookId];
+    const newFeedbacks = { ...instance.feedbacks };
+    
+    if (currentFeedback === feedback) {
+        delete newFeedbacks[lookId]; // Toggle off
+    } else {
+        newFeedbacks[lookId] = feedback;
+    }
+    
+    onUpdate({ ...instance, feedbacks: newFeedbacks });
+  };
+  
+  const handleAddComment = (lookId: number, commentText: string) => {
+    if (!instance || !onUpdate || !commentText.trim()) return;
+
+    const newComment: Comment = {
+        id: crypto.randomUUID(),
+        author: 'client', // The person viewing the shared link is the client
+        text: commentText.trim(),
+        createdAt: Date.now(),
+    };
+
+    const newComments = { ...instance.comments };
+    const lookComments = newComments[lookId] || [];
+    newComments[lookId] = [...lookComments, newComment];
+
+    onUpdate({ ...instance, comments: newComments });
+  };
+
+
   useEffect(() => {
     if (selectedLook) {
       setTimeout(() => {
@@ -98,9 +163,6 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
     }
   }, [selectedLook]);
 
-  const displayTitle = instance?.title || lookboard.title;
-  const displayNote = instance?.note || lookboard.note;
-
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -113,31 +175,25 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
               <h2 
                 className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100'
               >
-                {displayTitle}
+                {lookboard.title}
               </h2>
-              {displayNote && <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-3xl mx-auto mt-4">{displayNote}</p>}
+              {lookboard.note && <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-3xl mx-auto mt-4">{lookboard.note}</p>}
             </div>
 
             {looks.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {looks.map((look) => {
-                        const finalImage = overrides?.[look.id]?.finalImage || look.finalImage;
-                        const lookWithOverride = { ...look, finalImage };
-                        
-                        return (
-                            <LookboardCard
-                              key={look.id}
-                              look={lookWithOverride}
-                              onImageClick={() => setSelectedLook(lookWithOverride)}
-                              isFeedbackEnabled={isFeedbackEnabled}
-                              feedback={instance?.feedbacks[look.id]}
-                              commentCount={(instance?.comments[look.id] || []).length}
-                              onLike={() => handleFeedback(look.id, 'liked')}
-                              onDislike={() => handleFeedback(look.id, 'disliked')}
-                              onComment={() => setCommentingOnLook(lookWithOverride)}
-                            />
-                        );
-                    })}
+                    {looks.map((look) => (
+                        <LookboardCard
+                          key={look.id}
+                          look={look}
+                          onImageClick={() => setSelectedLook(look)}
+                          isFeedbackEnabled={isFeedbackEnabled}
+                          feedback={instance?.feedbacks[look.id]}
+                          onFeedback={(feedbackType) => handleFeedback(look.id, feedbackType)}
+                          onOpenComments={() => setLookForComments(look)}
+                          commentCount={instance?.comments[look.id]?.length || 0}
+                        />
+                    ))}
                 </div>
             ) : (
                 <div className="text-center py-20 border border-dashed rounded-lg">
@@ -164,21 +220,7 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                 <div>
                     <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6">
                         <div className="bg-zinc-100 dark:bg-zinc-800 sm:rounded-t-lg flex justify-center items-center min-h-[300px]">
-                            {(() => {
-                                const isVideo = selectedLook.finalImage && (selectedLook.finalImage.startsWith('data:video/') || selectedLook.finalImage.endsWith('.mp4'));
-                                return isVideo ? (
-                                    <video
-                                        src={selectedLook.finalImage}
-                                        className="max-w-full max-h-[60vh] object-contain"
-                                        autoPlay
-                                        loop
-                                        muted
-                                        playsInline
-                                    />
-                                ) : (
-                                    <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
-                                );
-                            })()}
+                            <img src={selectedLook.finalImage} alt="Look" className="max-w-full max-h-[60vh] object-contain" />
                         </div>
                     </div>
                     <div>
@@ -208,60 +250,15 @@ const ViewLookboardPage: React.FC<ViewLookboardPageProps> = ({ data, onUpdate })
                 </div>
             </Modal>
         )}
-
-        {commentingOnLook && (
-            <Modal
-                isOpen={!!commentingOnLook}
-                onClose={() => setCommentingOnLook(null)}
-                title="Feedback & Comments"
-            >
-                <div className="flex flex-col md:flex-row gap-6">
-                    <div className="md:w-1/2">
-                        {(() => {
-                            const isVideo = commentingOnLook.finalImage && (commentingOnLook.finalImage.startsWith('data:video/') || commentingOnLook.finalImage.endsWith('.mp4'));
-                            return isVideo ? (
-                                <video
-                                    src={commentingOnLook.finalImage}
-                                    className="rounded-lg w-full h-auto object-contain"
-                                    autoPlay
-                                    loop
-                                    muted
-                                    playsInline
-                                />
-                            ) : (
-                                <img src={commentingOnLook.finalImage} alt="Look" className="rounded-lg w-full h-auto object-contain" />
-                            );
-                        })()}
-                    </div>
-                    <div className="md:w-1/2 flex flex-col">
-                        <h3 className="font-bold mb-2">Comments</h3>
-                        <div className="flex-grow space-y-3 overflow-y-auto mb-4 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-md max-h-64">
-                        {(instance?.comments?.[commentingOnLook.id] || []).length > 0 ? (
-                            (instance?.comments?.[commentingOnLook.id] || []).map(comment => (
-                            <div key={comment.id} className="text-sm">
-                                <p className="bg-zinc-200 dark:bg-zinc-700 p-2 rounded-lg inline-block">{comment.text}</p>
-                                <p className="text-xs text-zinc-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
-                            </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-zinc-500 text-center py-4">No comments yet.</p>
-                        )}
-                        </div>
-                        <form onSubmit={(e) => { e.preventDefault(); handleAddComment(commentingOnLook.id); }}>
-                        <div className="flex gap-2">
-                            <textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Add your feedback..."
-                            rows={2}
-                            className="flex-grow w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
-                            />
-                            <Button type="submit" disabled={!newComment.trim()}>Send</Button>
-                        </div>
-                        </form>
-                    </div>
-                </div>
-            </Modal>
+        {lookForComments && instance && (
+            <CommentsModal
+                isOpen={!!lookForComments}
+                onClose={() => setLookForComments(null)}
+                look={lookForComments}
+                comments={instance.comments[lookForComments.id] || []}
+                onAddComment={(commentText) => handleAddComment(lookForComments.id, commentText)}
+                stylistName={lookboard.createdByUsername}
+            />
         )}
     </div>
   );

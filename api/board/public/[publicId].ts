@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Look, Lookboard, LookOverrides } from '../../../types';
+import { Look, Lookboard } from '../../../types';
 
 export default async function handler(
   request: NextApiRequest,
@@ -33,11 +33,10 @@ export default async function handler(
         
         const creatorEmail = lookboard.createdBy;
 
-        // Fetch the creator's private looks, all public looks, AND the creator's overrides
-        const [userLooks, publicLooksMap, overrides] = await Promise.all([
+        // Fetch both the creator's private looks and all public looks
+        const [userLooks, publicLooksMap] = await Promise.all([
             kv.get<Look[]>(`looks:${creatorEmail}`),
-            kv.hgetall<Record<string, Look>>('public_looks_hash'),
-            kv.get<LookOverrides>(`user_overrides:${creatorEmail}`)
+            kv.hgetall<Record<string, Look>>('public_looks_hash')
         ]);
         
         const combinedLooksMap = new Map<number, Look>();
@@ -64,7 +63,7 @@ export default async function handler(
             .filter((look): look is Look => look !== undefined);
 
         // This endpoint does not return an 'instance' object, as it's for view-only access.
-        return response.status(200).json({ lookboard, looks: boardLooks, overrides: overrides || {} });
+        return response.status(200).json({ lookboard, looks: boardLooks });
 
     } catch (error) {
         console.error('Error fetching public board data:', error);

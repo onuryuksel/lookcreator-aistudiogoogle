@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -20,25 +19,25 @@ const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const UploadIcon: React.FC = () => (
   <Icon>
-    <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5" />
-    <polyline points="7.5 7.5 12 3 16.5 7.5" />
-    <line x1="12" y1="3" x2="12" y2="16.5" />
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
   </Icon>
 );
 
 export const CloudUploadIcon: React.FC = () => (
     <Icon>
         <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
-        <polyline points="16 12 12 8 8 12" />
-        <line x1="12" y1="8" x2="12" y2="16" />
+        <path d="M12 12v9" />
+        <path d="m16 16-4-4-4 4" />
     </Icon>
 );
 
 export const DownloadIcon: React.FC = () => (
     <Icon>
-        <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5" />
-        <polyline points="16.5 12 12 16.5 7.5 12" />
-        <line x1="12" y1="16.5" x2="12" y2="3" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
     </Icon>
 );
 
@@ -82,13 +81,6 @@ export const ChevronLeftIcon: React.FC = () => (
 export const ChevronRightIcon: React.FC = () => (
     <Icon>
         <polyline points="9 18 15 12 9 6" />
-    </Icon>
-);
-
-// FIX: Add missing ChevronDownIcon component to resolve import error.
-export const ChevronDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
-        <polyline points="6 9 12 15 18 9" />
     </Icon>
 );
 
@@ -180,8 +172,9 @@ export const ThumbsDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =
     </Icon>
 );
 
-export const MessageSquareIcon: React.FC = () => (
-    <Icon>
+// FIX: Updated MessageSquareIcon to accept and pass through SVG props, allowing className to be applied.
+export const MessageSquareIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props}>
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </Icon>
 );
@@ -197,12 +190,5 @@ export const SettingsIcon: React.FC = () => (
     <Icon>
         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
         <circle cx="12" cy="12" r="3" />
-    </Icon>
-);
-
-export const CopyIcon: React.FC = () => (
-    <Icon>
-        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
     </Icon>
 );

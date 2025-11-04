@@ -31,9 +31,9 @@ export default async function handler(
 
 async function shareBoard(request: NextApiRequest, response: NextApiResponse) {
     try {
-        const { publicId, sharedBy, sharedByUsername, clientName, title, note } = request.body;
-        if (!publicId || !sharedBy || !sharedByUsername) {
-            return response.status(400).json({ message: 'Lookboard publicId, sharedBy email, and sharedBy username are required.' });
+        const { publicId, sharedBy } = request.body;
+        if (!publicId || !sharedBy) {
+            return response.status(400).json({ message: 'Lookboard publicId and sharedBy email are required.' });
         }
         
         const lookboard = await kv.get(`publicId:${publicId}`);
@@ -47,22 +47,13 @@ async function shareBoard(request: NextApiRequest, response: NextApiResponse) {
             id: instanceId,
             lookboardPublicId: publicId,
             sharedBy: sharedBy,
-            sharedByUsername: sharedByUsername,
-            clientName: clientName || undefined,
             createdAt: Date.now(),
             feedbacks: {},
             comments: {},
-            title: title || undefined,
-            note: note || undefined,
         };
         
         const instanceKey = `instance:${instanceId}`;
-        const instancesIndexKey = `instances_for_board:${publicId}`;
-
-        const pipeline = kv.pipeline();
-        pipeline.set(instanceKey, JSON.stringify(newInstance), { ex: 90 * 24 * 60 * 60 });
-        pipeline.sadd(instancesIndexKey, instanceId);
-        await pipeline.exec();
+        await kv.set(instanceKey, JSON.stringify(newInstance), { ex: 90 * 24 * 60 * 60 });
 
         return response.status(201).json({ instanceId });
 
@@ -134,7 +125,7 @@ async function duplicateBoard(request: NextApiRequest, response: NextApiResponse
         
         await kv.set(`publicId:${newBoard.publicId}`, newBoard);
         
-        return response.status(201).json({ message: 'Board duplicated successfully.', newBoard });
+        return response.status(201).json({ publicId: newBoard.publicId });
     } catch (error) {
         console.error('Error duplicating board:', error);
         return response.status(500).json({ message: 'Internal Server Error' });

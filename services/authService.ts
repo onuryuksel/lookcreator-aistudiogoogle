@@ -1,4 +1,4 @@
-import { User, UserStats } from '../types';
+import { User } from '../types';
 
 const handleResponse = async (response: Response) => {
     const data = await response.json();
@@ -42,16 +42,6 @@ export const approveUser = async (email: string): Promise<void> => {
     await handleResponse(response);
 };
 
-export const declineUser = async (email: string): Promise<void> => {
-    const response = await fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'decline-user', email }),
-    });
-    await handleResponse(response);
-};
-
-
 export const migrateLegacyLooks = async (): Promise<{ message: string }> => {
     const response = await fetch('/api/admin', {
         method: 'POST',
@@ -77,10 +67,4 @@ export const updateLogo = async (logoBase64: string): Promise<{ message: string 
         body: JSON.stringify({ action: 'update-logo', logo: logoBase64 }),
     });
     return handleResponse(response);
-};
-
-export const getUserStats = async (): Promise<UserStats[]> => {
-    const response = await fetch('/api/admin?action=get-user-stats');
-    const { stats } = await handleResponse(response);
-    return stats;
 };

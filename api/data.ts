@@ -163,124 +163,93 @@ async function handleCommitChunks(request: NextApiRequest, response: NextApiResp
         if (!email || !importId || !chunkCounts || !overrides) {
             return response.status(400).json({ message: 'Missing required fields for commit.' });
         }
-        const emailLower = email.toLowerCase();
 
-        // --- 1. FETCH COMPLETE "BEFORE" STATE FOR THE CURRENT USER ---
-        const userLooksKey = `looks:${emailLower}`;
-        const userLookboardsKey = `lookboards:${emailLower}`;
-        const publicLooksKey = 'public_looks_hash';
-        const publicLookboardsKey = 'public_lookboards_hash';
-        
-        const [
-            oldUserPrivateLooks,
-            publicLooksMap,
-            oldUserPrivateLookboards,
-            publicLookboardsMap,
-        ] = await Promise.all([
-            kv.get<Look[]>(userLooksKey) || [],
-            kv.hgetall<Record<string, Look>>(publicLooksKey),
-            kv.get<Lookboard[]>(userLookboardsKey) || [],
-            kv.hgetall<Record<string, Lookboard>>(publicLookboardsKey),
-        ]);
-
-        const safeParse = <T>(data: any): T | null => {
-            if (!data) return null;
-            if (typeof data === 'object') return data as T;
-            if (typeof data === 'string') {
-                try { return JSON.parse(data) as T; } catch { return null; }
-            }
-            return null;
-        };
-
-        // FIX: Explicitly provide the generic type to `safeParse` to ensure the mapped array has the correct type (`(Look | null)[]`), allowing safe property access within the subsequent filter.
-        const oldUserPublicLooks = publicLooksMap ? Object.values(publicLooksMap).map(data => safeParse<Look>(data)).filter((l): l is Look => l !== null && l.createdBy === emailLower) : [];
-        
-        const oldUserAllLooks = [...oldUserPrivateLooks, ...oldUserPublicLooks];
-        
-        // FIX: Explicitly provide the generic type to `safeParse` to ensure the mapped array has the correct type (`(Lookboard | null)[]`), allowing safe property access within the subsequent filter.
-        const oldUserPublicLookboards = publicLookboardsMap ? Object.values(publicLookboardsMap).map(data => safeParse<Lookboard>(data)).filter((b): b is Lookboard => b !== null && b.createdBy === emailLower) : [];
-        const oldUserAllLookboards = [...oldUserPrivateLookboards, ...oldUserPublicLookboards];
-        
-        // --- 2. GET "AFTER" STATE FROM CLIENT CHUNKS ---
         const { looks: totalLookChunks, lookboards: totalLookboardChunks } = chunkCounts;
+        const emailLower = email.toLowerCase();
+        
         const lookChunkKeys = Array.from({ length: totalLookChunks }, (_, i) => `import:${emailLower}:${importId}:looks:${i}`);
         const lookboardChunkKeys = Array.from({ length: totalLookboardChunks }, (_, i) => `import:${emailLower}:${importId}:lookboards:${i}`);
-
+        
         const lookChunksData = totalLookChunks > 0 ? await kv.mget<Look[][]>(...lookChunkKeys) : [];
         const lookboardChunksData = totalLookboardChunks > 0 ? await kv.mget<Lookboard[][]>(...lookboardChunkKeys) : [];
 
         const allLooks: Look[] = lookChunksData.flat().filter(Boolean) as Look[];
         const allLookboards: Lookboard[] = lookboardChunksData.flat().filter(Boolean) as Lookboard[];
+
+        const userLooksKey = `looks:${emailLower}`;
+        const publicLooksKey = 'public_looks_hash';
+
+        const oldUserLooks: Look[] = await kv.get(userLooksKey) || [];
+        const currentUserLooks = allLooks.filter(l => l.createdBy === emailLower);
+        const updatedPublicLooksFromOthers = allLooks.filter(l => l.visibility === 'public' && l.createdBy !== emailLower);
+
+        const oldPublicLooksFromUser = oldUserLooks.filter(l => l.visibility === 'public');
+        const newPublicLooksFromUser = currentUserLooks.filter(l => l.visibility === 'public');
         
-        const newAllLooksMap = new Map(allLooks.map(l => [l.id, l]));
-        const newAllLookboardsMap = new Map(allLookboards.map(b => [b.id, b]));
+        const oldPublicLookIdsFromUser = new Set(oldPublicLooksFromUser.map(l => l.id));
+        const newPublicLookIdsFromUser = new Set(newPublicLooksFromUser.map(l => l.id));
+
+        const lookIdsToRemovePublicly = oldPublicLooksFromUser
+            .filter(l => !newPublicLookIdsFromUser.has(l.id))
+            .map(l => String(l.id));
+
+        const looksToUpdatePubliclyMap: Record<string, Look> = {};
+        newPublicLooksFromUser.forEach(look => { looksToUpdatePubliclyMap[String(look.id)] = look; });
+        updatedPublicLooksFromOthers.forEach(look => { looksToUpdatePubliclyMap[String(look.id)] = look; });
         
-        // --- 3. IDENTIFY DELETED ITEMS AND PREPARE CLEANUP ---
-        const deletedLooks = oldUserAllLooks.filter(look => !newAllLooksMap.has(look.id));
-        const deletedLookboards = oldUserAllLookboards.filter(board => !newAllLookboardsMap.has(board.id));
+        const userLookboardsKey = `lookboards:${emailLower}`;
+        const publicLookboardsKey = 'public_lookboards_hash';
+
+        const oldUserLookboards: Lookboard[] = await kv.get(userLookboardsKey) || [];
+        const currentUserLookboards = allLookboards.filter(b => b.createdBy === emailLower);
+        const updatedPublicLookboardsFromOthers = allLookboards.filter(b => b.visibility === 'public' && b.createdBy !== emailLower);
+
+        const privateLookboards = currentUserLookboards.filter(b => b.visibility !== 'public');
+        const publicLookboardsFromUser = currentUserLookboards.filter(b => b.visibility === 'public');
+
+        const oldPublicLookboardIdsFromUser = new Set(oldUserLookboards.filter(b => b.visibility === 'public').map(b => b.id));
+        const newPublicLookboardIdsFromUser = new Set(publicLookboardsFromUser.map(b => b.id));
+
+        const boardIdsToRemovePublicly = oldUserLookboards
+            .filter(b => oldPublicLookboardIdsFromUser.has(b.id) && !newPublicLookboardIdsFromUser.has(b.id))
+            .map(b => String(b.id));
+
+        const boardsToUpdatePubliclyMap: Record<string, Lookboard> = {};
+        publicLookboardsFromUser.forEach(board => { boardsToUpdatePubliclyMap[String(board.id)] = board; });
+        updatedPublicLookboardsFromOthers.forEach(board => { boardsToUpdatePubliclyMap[String(board.id)] = board; });
         
         const pipeline = kv.pipeline();
-
-        // Cleanup for deleted looks
-        const publicLookIdsToDelete = deletedLooks.filter(l => l.visibility === 'public').map(l => String(l.id));
-        if (publicLookIdsToDelete.length > 0) {
-            pipeline.hdel(publicLooksKey, ...publicLookIdsToDelete);
-        }
-
-        // Cleanup for deleted lookboards
-        const publicBoardIdsToDelete = deletedLookboards.filter(b => b.visibility === 'public').map(b => String(b.id));
-        const publicBoardPublicIdsToDelete = deletedLookboards.map(b => b.publicId).filter((id): id is string => !!id);
         
-        if (publicBoardIdsToDelete.length > 0) {
-            pipeline.hdel(publicLookboardsKey, ...publicBoardIdsToDelete);
-        }
-        if (publicBoardPublicIdsToDelete.length > 0) {
-            pipeline.del(...publicBoardPublicIdsToDelete.map(id => `publicId:${id}`));
+        if (Object.keys(looksToUpdatePubliclyMap).length > 0) { pipeline.hset(publicLooksKey, looksToUpdatePubliclyMap); }
+        if (lookIdsToRemovePublicly.length > 0) { pipeline.hdel(publicLooksKey, ...lookIdsToRemovePublicly); }
+        pipeline.set(userLooksKey, currentUserLooks);
+        
+        if (Object.keys(boardsToUpdatePubliclyMap).length > 0) { pipeline.hset(publicLookboardsKey, boardsToUpdatePubliclyMap); }
+        if (boardIdsToRemovePublicly.length > 0) { pipeline.hdel(publicLookboardsKey, ...boardIdsToRemovePublicly); }
+        pipeline.set(userLookboardsKey, privateLookboards);
+
+        // --- NEW: Sync publicId direct lookup index ---
+        const oldPublicIds = new Set(oldUserLookboards.map(b => b.publicId).filter(Boolean));
+        const newPublicIds = new Set(currentUserLookboards.map(b => b.publicId).filter(Boolean));
+        
+        const idsToDelete = [...oldPublicIds].filter(id => !newPublicIds.has(id));
+        const publicIdKeysToDelete = idsToDelete.map(id => `publicId:${id}`);
+        if (publicIdKeysToDelete.length > 0) {
+            pipeline.del(...publicIdKeysToDelete);
         }
         
-        // CRITICAL: Delete associated instances for deleted boards
-        const instanceCleanupPromises = deletedLookboards.map(async board => {
-            if (!board.publicId) return;
-            const instancesIndexKey = `instances_for_board:${board.publicId}`;
-            const instanceIds = await kv.smembers(instancesIndexKey);
-            if (instanceIds && instanceIds.length > 0) {
-                const instanceKeysToDelete = instanceIds.map(id => `instance:${id}`);
-                pipeline.del(...instanceKeysToDelete);
+        const publicIdIndexMap: Record<string, string> = {};
+        currentUserLookboards.forEach(board => {
+            if (board.publicId) {
+                publicIdIndexMap[`publicId:${board.publicId}`] = JSON.stringify(board);
             }
-            pipeline.del(instancesIndexKey);
         });
-        await Promise.all(instanceCleanupPromises);
+        if (Object.keys(publicIdIndexMap).length > 0) {
+            pipeline.mset(publicIdIndexMap);
+        }
+        // --- END NEW ---
         
-        // --- 4. PREPARE NEW STATE FOR SAVING ---
-        const userPrivateLooks = allLooks.filter(l => l.createdBy === emailLower && l.visibility !== 'public');
-        const userPrivateBoards = allLookboards.filter(b => b.createdBy === emailLower && b.visibility !== 'public');
-
-        const allPublicLooks = allLooks.filter(l => l.visibility === 'public');
-        const allPublicBoards = allLookboards.filter(b => b.visibility === 'public');
-
-        const publicLooksToUpdate = allPublicLooks.reduce((acc, look) => ({ ...acc, [String(look.id)]: look }), {});
-        const publicBoardsToUpdate = allPublicBoards.reduce((acc, board) => ({ ...acc, [String(board.id)]: board }), {});
-
-        const userBoardsPublicIdIndex = allLookboards
-            .filter(b => b.createdBy === emailLower && b.publicId)
-            .reduce((acc, board) => ({ ...acc, [`publicId:${board.publicId}`]: JSON.stringify(board) }), {});
-
-        // --- 5. EXECUTE SAVE AND CLEANUP PIPELINE ---
-        pipeline.set(userLooksKey, userPrivateLooks);
-        pipeline.set(userLookboardsKey, userPrivateBoards);
-        
-        if (Object.keys(publicLooksToUpdate).length > 0) {
-            pipeline.hset(publicLooksKey, publicLooksToUpdate);
-        }
-        if (Object.keys(publicBoardsToUpdate).length > 0) {
-            pipeline.hset(publicLookboardsKey, publicBoardsToUpdate);
-        }
-        if (Object.keys(userBoardsPublicIdIndex).length > 0) {
-            pipeline.mset(userBoardsPublicIdIndex);
-        }
-
         pipeline.set(`user_overrides:${emailLower}`, overrides);
-        
         await pipeline.exec();
 
         const allChunkKeys = [...lookChunkKeys, ...lookboardChunkKeys];
@@ -288,7 +257,7 @@ async function handleCommitChunks(request: NextApiRequest, response: NextApiResp
             await kv.del(...allChunkKeys);
         }
 
-        return response.status(200).json({ message: 'Data committed successfully.' });
+        return response.status(200).json({ message: 'Data imported and committed successfully.' });
     } catch (error) {
         console.error('Error committing data from KV:', error);
         return response.status(500).json({ message: 'Internal Server Error' });

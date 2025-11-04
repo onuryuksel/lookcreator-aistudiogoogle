@@ -86,14 +86,9 @@ export interface SharedLookboardInstance {
     id: string; // The unique ID for the share link (e.g., /board/{id})
     lookboardPublicId: string; // Links to the Lookboard template
     sharedBy: string; // Email of the user who generated this specific link
-    sharedByUsername: string; // Username of the person who shared it
-    clientName?: string; // Optional name for the client this link is for
     createdAt: number;
     feedbacks: Record<number, 'liked' | 'disliked'>;
     comments: Record<number, Comment[]>;
-    // NEW: Link-specific overrides for title and note
-    title?: string;
-    note?: string;
 }
 
 // From LifestyleShootPage.tsx
@@ -169,11 +164,10 @@ export interface User {
   status: 'pending' | 'approved';
   role: 'user' | 'admin';
   createdAt: number;
-  // Modern secure password fields
+  // FIX: Replaced plaintext password with a hashed password and salt for secure storage.
+  // These properties are for server-side use only and are stripped before sending user data to the client.
   hashedPassword?: string;
   salt?: string;
-  // Legacy plaintext password field for migration
-  password?: string;
 }
 
 // For legacy import from old studio
@@ -183,15 +177,3 @@ export interface LegacyLook {
 }
 
 export type LookOverrides = Record<number, { finalImage: string }>;
-
-// For Admin User Statistics
-export interface UserStats {
-    user: User;
-    lookCount: number;
-    productCount: number;
-    boardCount: number;
-    videoCount: number;
-    variationCount: number; // Includes AI edits, lifestyle, videos, etc.
-    lastActivity: number; // timestamp
-    looksPerBoard: number;
-}

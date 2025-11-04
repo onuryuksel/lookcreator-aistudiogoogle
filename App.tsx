@@ -3,7 +3,7 @@ import CreatorStudio from './pages/CreatorStudio';
 import ViewLookboardPage from './pages/ViewLookboardPage';
 import AuthPage from './pages/AuthPage';
 import AdminPage from './pages/AdminPage';
-import { Lookboard, Look, SharedLookboardInstance, LookOverrides } from './types';
+import { Lookboard, Look, SharedLookboardInstance } from './types';
 import { Spinner } from './components/common';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -13,7 +13,6 @@ interface ViewLookboardData {
     lookboard: Lookboard;
     looks: Look[];
     instance?: SharedLookboardInstance; // Instance is now optional
-    overrides?: LookOverrides; // Overrides of the board creator
 }
 
 const AppContent: React.FC = () => {

@@ -15,15 +15,14 @@ interface LookboardCardProps {
   onDrop?: React.DragEventHandler<HTMLDivElement>;
   onDragEnter?: React.DragEventHandler<HTMLDivElement>;
   onDragLeave?: React.DragEventHandler<HTMLDivElement>;
+  // FIX: Add onDragEnd to the component's props to allow passing the event handler for drag-and-drop sorting.
   onDragEnd?: React.DragEventHandler<HTMLDivElement>;
-  isDragging?: boolean;
-  // Feedback props
+  // New feedback props
   isFeedbackEnabled?: boolean;
   feedback?: 'liked' | 'disliked';
+  onFeedback?: (feedback: 'liked' | 'disliked') => void;
+  onOpenComments?: () => void;
   commentCount?: number;
-  onLike?: () => void;
-  onDislike?: () => void;
-  onComment?: () => void;
 }
 
 const LookboardCard: React.FC<LookboardCardProps> = ({ 
@@ -31,13 +30,11 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
   onImageClick,
   isEditing,
   onDelete,
-  isDragging,
   isFeedbackEnabled,
   feedback,
-  commentCount = 0,
-  onLike,
-  onDislike,
-  onComment,
+  onFeedback,
+  onOpenComments,
+  commentCount,
   ...dragProps
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -50,31 +47,35 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
     }
     setIsLoaded(true);
   };
-  
-  const handleVideoLoad = (event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    const { videoWidth, videoHeight } = event.currentTarget;
-    if (videoWidth > videoHeight) {
-        setIsLandscape(true);
-    }
-    setIsLoaded(true);
-  };
 
   const isVideo = look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4');
+  
+  const handleFeedbackClick = (e: React.MouseEvent, feedbackType: 'liked' | 'disliked') => {
+    e.stopPropagation();
+    onFeedback?.(feedbackType);
+  };
+  
+  const handleCommentsClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onOpenComments?.();
+  };
 
   return (
     <div
-      className={`relative group transition-opacity ${isLandscape ? 'col-span-2' : ''} ${isDragging ? 'opacity-40' : ''}`}
-      onClick={!isEditing ? onImageClick : undefined}
+      className={`relative group ${isLandscape && !isEditing ? 'col-span-2' : ''}`}
       {...dragProps}
     >
-      <div className={`relative ${isEditing ? 'cursor-grab' : 'cursor-pointer'}`}>
+      <div 
+        onClick={onImageClick}
+        className={`relative ${isEditing ? 'cursor-grab' : 'cursor-pointer'}`}
+      >
         {!isLoaded && <div className="pt-[125%] bg-zinc-100 dark:bg-zinc-800 rounded-lg animate-pulse" />}
         
         {isVideo ? (
             <video 
               src={look.finalImage} 
               className={`w-full h-auto object-cover rounded-lg transition-opacity duration-300 ${isLoaded ? 'static opacity-100' : 'absolute inset-0 opacity-0'}`}
-              onLoadedMetadata={handleVideoLoad}
+              onLoadedData={() => setIsLoaded(true)}
               muted
               autoPlay
               loop
@@ -92,7 +93,10 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
         {isEditing && (
           <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => onDelete && onDelete(look.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete && onDelete(look.id)
+              }}
               className="text-white bg-red-600/80 hover:bg-red-600 rounded-full p-2"
               aria-label="Remove look"
             >
@@ -102,30 +106,22 @@ const LookboardCard: React.FC<LookboardCardProps> = ({
         )}
 
         {isFeedbackEnabled && (
-            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-end items-center gap-2">
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onLike?.(); }} 
-                    className={`p-1.5 rounded-full transition-colors ${feedback === 'liked' ? 'bg-blue-500 text-white' : 'bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm'}`}
-                    aria-label="Like"
-                >
-                    <ThumbsUpIcon className="h-4 w-4" />
-                </button>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onDislike?.(); }} 
-                    className={`p-1.5 rounded-full transition-colors ${feedback === 'disliked' ? 'bg-red-500 text-white' : 'bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm'}`}
-                    aria-label="Dislike"
-                >
-                    <ThumbsDownIcon className="h-4 w-4" />
-                </button>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onComment?.(); }} 
-                    className="p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors flex items-center gap-1.5"
-                    aria-label="Comment"
-                >
-                    <MessageSquareIcon className="h-4 w-4" />
-                    {commentCount > 0 && <span className="text-xs font-bold">{commentCount}</span>}
-                </button>
-            </div>
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent rounded-b-lg flex justify-center items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button onClick={(e) => handleFeedbackClick(e, 'liked')} className="p-2 bg-white/20 hover:bg-white/40 backdrop-blur-sm rounded-full text-white transition-colors" aria-label="Like look">
+              <ThumbsUpIcon className={`h-5 w-5 transition-colors ${feedback === 'liked' ? 'fill-current text-green-400' : ''}`} />
+            </button>
+            <button onClick={(e) => handleFeedbackClick(e, 'disliked')} className="p-2 bg-white/20 hover:bg-white/40 backdrop-blur-sm rounded-full text-white transition-colors" aria-label="Dislike look">
+              <ThumbsDownIcon className={`h-5 w-5 transition-colors ${feedback === 'disliked' ? 'fill-current text-red-400' : ''}`} />
+            </button>
+            <button onClick={handleCommentsClick} className="relative p-2 bg-white/20 hover:bg-white/40 backdrop-blur-sm rounded-full text-white transition-colors" aria-label="View comments">
+              <MessageSquareIcon className="h-5 w-5" />
+              {commentCount && commentCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-zinc-800 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-stone-50 dark:ring-zinc-950">
+                  {commentCount}
+                </span>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </div>

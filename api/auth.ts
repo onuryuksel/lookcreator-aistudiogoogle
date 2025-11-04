@@ -59,44 +59,6 @@ async function handleSignup(request: NextApiRequest, response: NextApiResponse) 
         await kv.set(userKey, JSON.stringify(newUser));
         if (!isFirstAdmin) {
             await kv.sadd('pending_users', emailLower);
-
-            // Send notification email to admin
-            const resendApiKey = process.env.RESEND_API_KEY;
-            if (resendApiKey) {
-                try {
-                    const emailPayload = {
-                        from: 'Ounass Look Creator <onboarding@resend.dev>',
-                        to: [ADMIN_EMAIL],
-                        subject: 'New User Awaiting Approval',
-                        html: `
-                            <p>A new user has signed up for the Ounass Look Creator and is awaiting your approval.</p>
-                            <p><strong>Username:</strong> ${username}</p>
-                            <p><strong>Email:</strong> ${emailLower}</p>
-                            <p>Please log in to the admin panel to approve their account.</p>
-                        `,
-                    };
-
-                    const emailResponse = await fetch('https://api.resend.com/emails', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${resendApiKey}`,
-                        },
-                        body: JSON.stringify(emailPayload),
-                    });
-
-                    if (!emailResponse.ok) {
-                        const errorData = await emailResponse.json();
-                        console.error('Failed to send approval notification email:', errorData);
-                    } else {
-                        console.log('Approval notification email sent successfully.');
-                    }
-                } catch (emailError) {
-                    console.error('Error sending notification email via Resend:', emailError);
-                }
-            } else {
-                console.warn('RESEND_API_KEY is not set. Skipping admin notification email.');
-            }
         }
 
         return response.status(201).json({ message: 'User created successfully. Awaiting approval.' });
@@ -136,46 +98,23 @@ async function handleLogin(request: NextApiRequest, response: NextApiResponse) {
             console.error('Unexpected user data type from KV:', typeof userData);
             return response.status(500).json({ message: 'Internal Server Error: Invalid user data format.' });
         }
-        
-        let isPasswordValid = false;
-        let needsUpgrade = false;
 
-        // Modern user with salt and hashed password
-        if (user.salt && user.hashedPassword) {
-            const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
-            isPasswordValid = user.hashedPassword === hash;
-        } 
-        // Legacy user with plaintext password (no salt)
-        else if (user.password) {
-            isPasswordValid = user.password === password;
-            if (isPasswordValid) {
-                needsUpgrade = true;
-            }
+        if (!user.salt || !user.hashedPassword) {
+            return response.status(401).json({ message: 'Invalid credentials' });
         }
+        const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
+        const isPasswordValid = user.hashedPassword === hash;
 
         if (!isPasswordValid) {
             return response.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // If the legacy user's password was correct, upgrade their account to use hashing.
-        if (needsUpgrade) {
-            const newSalt = crypto.randomBytes(16).toString('hex');
-            const newHashedPassword = crypto.pbkdf2Sync(password, newSalt, 1000, 64, 'sha512').toString('hex');
-            user.salt = newSalt;
-            user.hashedPassword = newHashedPassword;
-            delete user.password; // Remove the old plaintext password
-            await kv.set(userKey, JSON.stringify(user));
-        }
-
-
         if (user.status !== 'approved') {
             return response.status(403).json({ message: 'Your account is pending approval.' });
         }
 
-        // Clean up the user object before sending it to the client
         delete user.hashedPassword;
         delete user.salt;
-        delete user.password;
 
         return response.status(200).json({ message: 'Login successful', user });
 

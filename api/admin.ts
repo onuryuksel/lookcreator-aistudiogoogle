@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { User, Look, Lookboard, UserStats } from '../types';
+import { User, Look, Lookboard } from '../types';
 
 // --- MAIN HANDLER ---
 export default async function handler(
@@ -11,14 +11,13 @@ export default async function handler(
 
     if (request.method === 'GET') {
         const { action } = request.query;
-        switch (action) {
-            case 'get-pending-users':
-                return await getPendingUsers(request, response);
-            case 'get-user-stats':
-                return await getUserStats(request, response);
-            default:
-                return response.status(400).json({ message: 'Invalid action for GET request.' });
+        if (action === 'get-pending-users') {
+            return await getPendingUsers(request, response);
         }
+        if (action === 'get-user-statistics') {
+            return await getUserStatistics(request, response);
+        }
+        return response.status(400).json({ message: 'Invalid action for GET request.' });
     }
 
     if (request.method === 'POST') {
@@ -26,8 +25,6 @@ export default async function handler(
         switch (action) {
             case 'approve-user':
                 return await approveUser(request, response);
-            case 'decline-user':
-                return await declineUser(request, response);
             case 'migrate-looks':
                 return await migrateLooks(request, response);
             case 'reindex-boards':
@@ -44,92 +41,6 @@ export default async function handler(
 
 
 // --- ACTION HANDLERS ---
-async function getUserStats(request: NextApiRequest, response: NextApiResponse) {
-    try {
-        const userKeys = await kv.keys('user:*');
-        if (!userKeys || userKeys.length === 0) {
-            return response.status(200).json({ stats: [] });
-        }
-
-        const usersData = await kv.mget<User[]>(...userKeys);
-        const validUsers = usersData.filter((u): u is User => u !== null && typeof u === 'object');
-
-        const statsPromises = validUsers.map(async (user) => {
-            const looksKey = `looks:${user.email}`;
-            const boardsKey = `lookboards:${user.email}`;
-
-            const [rawLooks, rawPrivateBoards, publicBoardsMap] = await Promise.all([
-                kv.get<Look[]>(looksKey),
-                kv.get<Lookboard[]>(boardsKey),
-                kv.hgetall<Record<string, Lookboard>>('public_lookboards_hash'),
-            ]);
-
-            // Defensively filter out null/malformed entries to prevent crashes
-            const looks = (rawLooks || []).filter((l): l is Look => l !== null && typeof l === 'object');
-            const privateBoards = (rawPrivateBoards || []).filter((b): b is Lookboard => b !== null && typeof b === 'object');
-
-            const userPublicBoards = Object.values(publicBoardsMap || {})
-                .map(boardData => {
-                    if (!boardData) return null;
-                    try {
-                        const board = typeof boardData === 'string' ? JSON.parse(boardData) : boardData;
-                        if (board && typeof board === 'object' && board.id) {
-                            return board;
-                        }
-                        return null;
-                    } catch { return null; }
-                })
-                .filter((board): board is Lookboard => board !== null && board.createdBy === user.email);
-
-            const allBoards = [...privateBoards, ...userPublicBoards];
-            
-            let lastActivity = user.createdAt;
-            let productCount = 0;
-            let variationCount = 0;
-            let videoCount = 0;
-
-            looks.forEach(look => {
-                if (look.createdAt > lastActivity) {
-                    lastActivity = look.createdAt;
-                }
-                productCount += look.products?.length || 0;
-                const variations = look.variations || [];
-                variationCount += variations.length;
-                videoCount += variations.filter(v => v && (v.endsWith('.mp4') || v.startsWith('data:video/'))).length;
-            });
-
-            allBoards.forEach(board => {
-                if (board.createdAt > lastActivity) {
-                    lastActivity = board.createdAt;
-                }
-            });
-
-            const lookCount = looks.length;
-            const boardCount = allBoards.length;
-            const looksPerBoard = boardCount > 0 ? lookCount / boardCount : 0;
-            
-            // Sanitize user object
-            const { hashedPassword, salt, password, ...safeUser } = user;
-
-            return {
-                user: safeUser,
-                lookCount,
-                productCount,
-                boardCount,
-                videoCount,
-                variationCount,
-                lastActivity,
-                looksPerBoard,
-            };
-        });
-
-        const stats = await Promise.all(statsPromises);
-        return response.status(200).json({ stats });
-    } catch (error) {
-        console.error('Error fetching user stats:', error);
-        return response.status(500).json({ message: 'Internal Server Error' });
-    }
-}
 
 async function getPendingUsers(request: NextApiRequest, response: NextApiResponse) {
     try {
@@ -197,28 +108,6 @@ async function approveUser(request: NextApiRequest, response: NextApiResponse) {
         return response.status(200).json({ message: `User ${emailLower} approved successfully.` });
     } catch (error) {
         console.error(error);
-        return response.status(500).json({ message: 'Internal Server Error' });
-    }
-}
-
-async function declineUser(request: NextApiRequest, response: NextApiResponse) {
-    try {
-        const { email } = request.body;
-        if (!email) {
-            return response.status(400).json({ message: 'Email is required' });
-        }
-        const emailLower = email.toLowerCase();
-        const userKey = `user:${emailLower}`;
-
-        // Use a pipeline to ensure atomicity
-        const pipeline = kv.pipeline();
-        pipeline.del(userKey);
-        pipeline.srem('pending_users', emailLower);
-        await pipeline.exec();
-
-        return response.status(200).json({ message: `User ${emailLower} declined and deleted successfully.` });
-    } catch (error) {
-        console.error('Error declining user:', error);
         return response.status(500).json({ message: 'Internal Server Error' });
     }
 }
@@ -355,5 +244,96 @@ async function updateLogo(request: NextApiRequest, response: NextApiResponse) {
     } catch (error) {
         console.error('Error updating logo:', error);
         return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
+
+async function getUserStatistics(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const userKeys = await kv.keys('user:*');
+        if (!userKeys || userKeys.length === 0) {
+            return response.status(200).json({ statistics: [] });
+        }
+
+        const usersData = await kv.mget(...userKeys);
+        
+        const users: User[] = usersData
+            .filter(Boolean)
+            .map(userData => {
+                let user: User;
+                if (typeof userData === 'string') {
+                    try { user = JSON.parse(userData); } catch (e) { return null; }
+                } else if (typeof userData === 'object' && userData !== null) {
+                    user = userData as User;
+                } else {
+                    return null;
+                }
+                delete user.hashedPassword;
+                delete user.salt;
+                return user;
+            })
+            .filter((user): user is User => user !== null);
+
+        const statistics = [];
+
+        for (const user of users) {
+            const emailLower = user.email.toLowerCase();
+            const looksKey = `looks:${emailLower}`;
+            const boardsKey = `lookboards:${emailLower}`;
+            
+            const [userLooks, userBoards] = await Promise.all([
+                kv.get<Look[]>(looksKey),
+                kv.get<Lookboard[]>(boardsKey),
+            ]);
+            
+            const looks = userLooks || [];
+            const boards = userBoards || [];
+
+            let videosCount = 0;
+            let variationsCount = 0;
+
+            looks.forEach(look => {
+                const videoVariations = (look.variations || []).filter(v => v && (v.startsWith('data:video/') || v.endsWith('.mp4'))).length;
+                const imageVariations = (look.variations || []).length - videoVariations;
+                
+                const finalImageIsVideo = look.finalImage && (look.finalImage.startsWith('data:video/') || look.finalImage.endsWith('.mp4'));
+                
+                videosCount += videoVariations + (finalImageIsVideo ? 1 : 0);
+                variationsCount += imageVariations;
+            });
+
+            const looksCount = looks.length;
+            const productsCount = looks.reduce((acc, look) => acc + (look.products?.length || 0), 0);
+            const boardsCount = boards.length;
+            const looksPerBoard = boardsCount > 0 ? looksCount / boardsCount : 0;
+            
+            const allCreationDates = [
+                ...looks.map(l => l.createdAt),
+                ...boards.map(b => b.createdAt)
+            ];
+
+            const lastActivity = allCreationDates.length > 0 ? Math.max(...allCreationDates) : 0;
+
+            statistics.push({
+                username: user.username,
+                email: user.email,
+                status: user.status,
+                joined: user.createdAt,
+                lastActivity: lastActivity > 0 ? lastActivity : user.createdAt,
+                looks: looksCount,
+                products: productsCount,
+                boards: boardsCount,
+                videos: videosCount,
+                variations: variationsCount,
+                looksPerBoard: parseFloat(looksPerBoard.toFixed(1)),
+            });
+        }
+        
+        statistics.sort((a, b) => b.lastActivity - a.lastActivity);
+
+        return response.status(200).json({ statistics });
+
+    } catch (error) {
+        console.error(error);
+        return response.status(500).json({ message: 'Internal Server Error fetching statistics' });
     }
 }

@@ -20,9 +20,7 @@ export const Card: React.FC<CardProps> = ({ children, className = '', ...props }
 // This allows the Button to be rendered as different elements (e.g., a <label>) while maintaining type safety.
 type ButtonOwnProps<C extends React.ElementType> = {
   as?: C;
-  // FIX: Made the 'children' prop optional. The required prop was causing widespread TypeScript
-  // errors where the compiler would fail to correctly infer the presence of JSX children.
-  children?: ReactNode;
+  children: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
 };
 
@@ -45,14 +43,10 @@ export const Button = <C extends React.ElementType = 'button'>({
   
   const finalClassName = `${baseClasses} ${variantClasses[variant]} ${className || ''}`.trim();
 
-  // FIX: Resolved TypeScript error "JSX element type 'Component' does not have any construct or call signatures."
-  // Using React.createElement instead of JSX for the polymorphic component bypasses the JSX type-checking limitation.
-  // The props are cast to 'any' as TypeScript cannot properly infer the props for the generic `Component`.
-  // Type safety is maintained by the strict `ButtonProps` definition.
-  return React.createElement(
-    Component,
-    { className: finalClassName, ...(props as any) },
-    children
+  return (
+    <Component className={finalClassName} {...props}>
+      {children}
+    </Component>
   );
 };
 

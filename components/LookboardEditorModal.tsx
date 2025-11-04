@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Look, Lookboard, LookOverrides } from '../types';
+import { Look, Lookboard } from '../types';
 import { Modal, Button, Spinner } from './common';
 import LookboardCard from './LookboardCard';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +11,6 @@ interface LookboardEditorModalProps {
   onClose: () => void;
   board: Lookboard | null;
   allUserLooks: Look[];
-  lookOverrides: LookOverrides;
   onSaveSuccess: () => void;
 }
 
@@ -21,18 +20,12 @@ const AddLooksToBoardModal: React.FC<{
     onAddLooks: (newLooks: Look[]) => void,
     allUserLooks: Look[],
     existingLookIds: Set<number>,
-    lookOverrides: LookOverrides,
-}> = ({ isOpen, onClose, onAddLooks, allUserLooks, existingLookIds, lookOverrides }) => {
+}> = ({ isOpen, onClose, onAddLooks, allUserLooks, existingLookIds }) => {
     const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
 
     const availableLooks = useMemo(() => {
-        return allUserLooks
-            .filter(look => !existingLookIds.has(look.id))
-            .map(look => {
-                const finalImage = lookOverrides[look.id]?.finalImage || look.finalImage;
-                return { ...look, finalImage };
-            });
-    }, [allUserLooks, existingLookIds, lookOverrides]);
+        return allUserLooks.filter(look => !existingLookIds.has(look.id));
+    }, [allUserLooks, existingLookIds]);
 
     const handleToggleSelection = (lookId: number) => {
         setSelectedLookIds(prev => {
@@ -88,7 +81,7 @@ const AddLooksToBoardModal: React.FC<{
 };
 
 
-const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onClose, board, allUserLooks, lookOverrides, onSaveSuccess }) => {
+const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onClose, board, allUserLooks, onSaveSuccess }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
     const [editableLookboard, setEditableLookboard] = useState<Lookboard | null>(board);
@@ -98,23 +91,16 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
 
     const draggedItemIndex = useRef<number | null>(null);
     const dragOverItemIndex = useRef<number | null>(null);
-    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
 
     useEffect(() => {
         if (board) {
             setEditableLookboard(board);
             const looksForBoard = board.lookIds
-                .map(id => {
-                    const originalLook = allUserLooks.find(look => look.id === id);
-                    if (!originalLook) return null;
-                    const finalImage = lookOverrides[id]?.finalImage || originalLook.finalImage;
-                    return { ...originalLook, finalImage };
-                })
+                .map(id => allUserLooks.find(look => look.id === id))
                 .filter((l): l is Look => !!l);
             setEditableLooks(looksForBoard);
         }
-    }, [board, allUserLooks, lookOverrides]);
+    }, [board, allUserLooks]);
 
     if (!isOpen || !editableLookboard) return null;
 
@@ -156,11 +142,7 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
     };
 
     const handleAddLooks = (newLooks: Look[]) => {
-        const newLooksWithOverrides = newLooks.map(look => {
-            const finalImage = lookOverrides[look.id]?.finalImage || look.finalImage;
-            return { ...look, finalImage };
-        });
-        setEditableLooks(prev => [...prev, ...newLooksWithOverrides]);
+        setEditableLooks(prev => [...prev, ...newLooks]);
     };
 
     const handleDragSort = () => {
@@ -179,43 +161,38 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
     return (
         <>
             <Modal isOpen={isOpen} onClose={onClose} title="Edit Lookboard">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:h-[65vh]">
-                    {/* Left Column: Details */}
-                    <div className="md:col-span-1 space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Board Title</label>
-                            <input
-                                type="text"
-                                value={editableLookboard.title}
-                                onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, title: e.target.value } : null)}
-                                className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
-                                disabled={isSaving}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Personal Note</label>
-                            <textarea
-                                value={editableLookboard.note || ''}
-                                onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, note: e.target.value } : null)}
-                                rows={6}
-                                placeholder="Add a client-facing note..."
-                                className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 resize-none"
-                                disabled={isSaving}
-                            />
-                        </div>
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Board Title</label>
+                        <input
+                            type="text"
+                            value={editableLookboard.title}
+                            onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, title: e.target.value } : null)}
+                            className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
+                            disabled={isSaving}
+                        />
                     </div>
-
-                    {/* Right Column: Looks */}
-                    <div className="md:col-span-2 flex flex-col h-full min-h-[40vh]">
-                        <div className="flex justify-between items-center mb-2 flex-shrink-0">
+                     <div>
+                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Personal Note</label>
+                        <textarea
+                            value={editableLookboard.note || ''}
+                            onChange={(e) => setEditableLookboard(prev => prev ? { ...prev, note: e.target.value } : null)}
+                            rows={3}
+                            placeholder="Add a client-facing note..."
+                            className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
+                            disabled={isSaving}
+                        />
+                    </div>
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
                             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Looks ({editableLooks.length})</label>
                             <Button variant="secondary" onClick={() => setIsAddLooksModalOpen(true)} disabled={isSaving}>
                                 <PlusIcon /> Add Looks
                             </Button>
                         </div>
-                        <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex-grow overflow-y-auto">
+                        <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 max-h-[40vh] overflow-y-auto">
                             {editableLooks.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {editableLooks.map((look, index) => (
                                         <LookboardCard
                                             key={look.id}
@@ -223,24 +200,15 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
                                             isEditing={true}
                                             onDelete={() => handleDeleteLook(look.id)}
                                             draggable={true}
-                                            onDragStart={() => {
-                                                draggedItemIndex.current = index;
-                                                setDraggedIndex(index);
-                                            }}
+                                            onDragStart={() => (draggedItemIndex.current = index)}
                                             onDragEnter={() => (dragOverItemIndex.current = index)}
-                                            onDragEnd={() => {
-                                                handleDragSort();
-                                                setDraggedIndex(null);
-                                            }}
+                                            onDragEnd={handleDragSort}
                                             onDragOver={(e) => e.preventDefault()}
-                                            isDragging={draggedIndex === index}
                                         />
                                     ))}
                                 </div>
                             ) : (
-                                <div className="h-full flex items-center justify-center">
-                                    <p className="text-center text-zinc-500">This board has no looks. <br/> Click "Add Looks" to get started.</p>
-                                </div>
+                                <p className="text-center text-zinc-500 py-8">This board has no looks. Click "Add Looks" to get started.</p>
                             )}
                         </div>
                     </div>
@@ -258,7 +226,6 @@ const LookboardEditorModal: React.FC<LookboardEditorModalProps> = ({ isOpen, onC
                 onAddLooks={handleAddLooks}
                 allUserLooks={allUserLooks}
                 existingLookIds={new Set(editableLooks.map(l => l.id))}
-                lookOverrides={lookOverrides}
             />
         </>
     );
