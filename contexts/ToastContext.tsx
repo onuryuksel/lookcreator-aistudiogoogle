@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import Toast from '../components/Toast';
 
@@ -17,10 +17,10 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = (message: string, type: ToastMessage['type']) => {
+  const showToast = useCallback((message: string, type: ToastMessage['type']) => {
     const id = Date.now();
     setToasts(prevToasts => [...prevToasts, { id, message, type }]);
-  };
+  }, []);
 
   const removeToast = (id: number) => {
     setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
