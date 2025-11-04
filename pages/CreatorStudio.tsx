@@ -17,6 +17,7 @@ import LookDetail from './LookDetail';
 import ConversationalEditPage from './ConversationalEditPage';
 import LifestyleShootPage from './LifestyleShootPage';
 import VideoCreationPage from './VideoCreationPage';
+import AddSkuPage from './AddSkuPage';
 
 import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
@@ -27,7 +28,7 @@ import LookboardEditorModal from '../components/LookboardEditorModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 
-type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot' | 'video-creation';
+type View = 'creator' | 'lookbook' | 'look-detail' | 'edit-look' | 'lifestyle-shoot' | 'video-creation' | 'add-sku';
 
 const CreatorStudio: React.FC = () => {
     // Main state
@@ -511,7 +512,7 @@ const CreatorStudio: React.FC = () => {
                 )}
                 <nav className="flex gap-4">
                     <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
-                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
+                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation', 'add-sku'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
                     {user?.role === 'admin' && (
                          <Button variant={'secondary'} onClick={() => window.location.href = '/admin'}>Admin Panel</Button>
                     )}
@@ -608,6 +609,7 @@ const CreatorStudio: React.FC = () => {
                     onEdit={() => setView('edit-look')}
                     onLifestyleShoot={() => setView('lifestyle-shoot')}
                     onVideoCreation={() => setView('video-creation')}
+                    onAddNewSku={() => setView('add-sku')}
                     isSaving={isSaving}
                 /></div> : null;
             case 'edit-look':
@@ -626,6 +628,13 @@ const CreatorStudio: React.FC = () => {
                 /></div> : null;
              case 'video-creation':
                  return activeLook ? <div className="p-6"><VideoCreationPage
+                    look={activeLook}
+                    onBack={() => setView('look-detail')}
+                    onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}
+                    isSaving={isSaving}
+                /></div> : null;
+             case 'add-sku':
+                 return activeLook ? <div className="p-6"><AddSkuPage
                     look={activeLook}
                     onBack={() => setView('look-detail')}
                     onSave={async (updatedLook) => { await handleUpdateLook(updatedLook); setView('look-detail'); }}

@@ -4,7 +4,7 @@ import * as blobService from '../services/blobService';
 import { base64toBlob } from '../utils';
 import ProductCard from '../components/ProductCard';
 import { Button, Card, Dropdown, DropdownItem, Spinner } from '../components/common';
-import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon, ShareIcon } from '../components/Icons';
+import { ChevronLeftIcon, EditIcon, ClapperboardIcon, TrashIcon, EllipsisVerticalIcon, StarIcon, ChevronRightIcon, CropIcon, XIcon, FilmIcon, ShareIcon, PlusCircleIcon } from '../components/Icons';
 import AspectRatioModal from '../components/AspectRatioModal';
 import ImageViewer from '../components/ImageViewer';
 import { useToast } from '../contexts/ToastContext';
@@ -21,10 +21,11 @@ interface LookDetailProps {
   onEdit: () => void;
   onLifestyleShoot: () => void;
   onVideoCreation: () => void;
+  onAddNewSku: () => void;
   isSaving: boolean;
 }
 
-const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, onDelete, onUpdate, onUpdateOverride, onEdit, onLifestyleShoot, onVideoCreation, isSaving }) => {
+const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, onDelete, onUpdate, onUpdateOverride, onEdit, onLifestyleShoot, onVideoCreation, onAddNewSku, isSaving }) => {
   const { user } = useAuth();
   const isCreator = user?.email === look.createdBy;
   
@@ -267,6 +268,9 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
             </DropdownItem>
             <DropdownItem onClick={() => setIsAspectRatioModalOpen(true)} disabled={isSaving || !hasImagesForEditing}>
                 <CropIcon/> Change Aspect Ratio
+            </DropdownItem>
+            <DropdownItem onClick={onAddNewSku} disabled={isSaving || !hasImagesForEditing}>
+                <PlusCircleIcon /> Add New SKU
             </DropdownItem>
             {isCreator && look.visibility === 'private' && (
                  <DropdownItem onClick={handleMakePublic} disabled={isSaving}>
