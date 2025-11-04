@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -205,5 +206,12 @@ export const CopyIcon: React.FC = () => (
     <Icon>
         <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
         <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </Icon>
+);
+
+export const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props}>
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
     </Icon>
 );

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Look, Lookboard, LookOverrides, SharedLookboardInstance } from '../types';
 import * as db from '../services/dbService';
-import { Button } from '../components/common';
+import { Button, Input } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
 import ShareOptionsModal from '../components/ShareOptionsModal';
-import { PlusIcon, ShareIcon } from '../components/Icons';
+import { PlusIcon, ShareIcon, SearchIcon } from '../components/Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -27,12 +27,32 @@ interface LookbookProps {
 const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [boardToShare, setBoardToShare] = useState<Lookboard | null>(null);
   const [isShareOptionsModalOpen, setIsShareOptionsModalOpen] = useState(false);
 
   const { user } = useAuth();
   const { showToast } = useToast();
+
+  const filteredLooks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return looks;
+    }
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return looks.filter(look => {
+      const match = 
+        look.tags?.some(tag => tag.toLowerCase().includes(lowercasedQuery)) ||
+        look.createdByUsername.toLowerCase().includes(lowercasedQuery) ||
+        look.products.some(product => 
+          product.sku.toLowerCase().includes(lowercasedQuery) ||
+          product.brand.toLowerCase().includes(lowercasedQuery) ||
+          product.class.toLowerCase().includes(lowercasedQuery) ||
+          (product.productClass && product.productClass.toLowerCase().includes(lowercasedQuery))
+        );
+      return match;
+    });
+  }, [looks, searchQuery]);
 
   const handleToggleLookSelection = (lookId: number) => {
     setSelectedLookIds(prev => {
@@ -98,7 +118,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
                 : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-200'
             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
-            My Looks ({looks.length})
+            My Looks ({filteredLooks.length})
           </button>
           <button
             onClick={() => onTabChange('boards')}
@@ -115,8 +135,17 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
 
       {activeTab === 'looks' && (
         <div>
-          <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">My Looks</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+              <h2 className="text-2xl font-bold flex-shrink-0">My Looks</h2>
+              <div className="flex-grow w-full sm:w-auto sm:max-w-md">
+                  <Input 
+                      icon={<SearchIcon className="h-4 w-4" />}
+                      type="search"
+                      placeholder="Search by tag, SKU, brand, creator..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+              </div>
               <Button onClick={() => setIsCreateBoardModalOpen(true)} disabled={selectedLooksCount === 0 || isSaving}>
                   <ShareIcon/>
                   Share {selectedLooksCount > 0 ? `${selectedLooksCount} Look${selectedLooksCount > 1 ? 's' : ''}` : 'Looks'}
@@ -136,7 +165,7 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
               </div>
             </div>
 
-            {looks.map(look => {
+            {filteredLooks.map(look => {
               const displayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
               const isVideo = displayImage.startsWith('data:video/') || displayImage.endsWith('.mp4');
               return (
@@ -175,6 +204,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
               );
             })}
           </div>
+          {filteredLooks.length === 0 && looks.length > 0 && (
+              <div className="text-center py-16">
+                  <p className="text-lg text-zinc-600 dark:text-zinc-400">No looks found for "{searchQuery}".</p>
+                  <p className="text-zinc-500 dark:text-zinc-500 mt-2">Try searching for something else.</p>
+              </div>
+          )}
         </div>
       )}
 

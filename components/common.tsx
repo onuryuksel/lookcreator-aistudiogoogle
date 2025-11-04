@@ -1,4 +1,5 @@
 
+
 import React, { ChangeEvent, ReactNode, useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { XIcon } from './Icons';
@@ -65,13 +66,28 @@ export const Button = <C extends React.ElementType = 'button'>({
 };
 
 // Input
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
-export const Input: React.FC<InputProps> = (props) => (
-  <input
-    className="w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500"
-    {...props}
-  />
-);
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+    icon?: ReactNode;
+}
+export const Input: React.FC<InputProps> = ({ icon, className, ...props }) => {
+    const baseClasses = "w-full px-3 py-2 border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white text-zinc-900 placeholder-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder-zinc-500";
+    const iconPadding = icon ? 'pl-10' : '';
+    const finalClassName = `${baseClasses} ${iconPadding} ${className || ''}`.trim();
+
+    return (
+        <div className="relative w-full">
+            {icon && (
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-zinc-500">{icon}</span>
+                </div>
+            )}
+            <input
+                className={finalClassName}
+                {...props}
+            />
+        </div>
+    );
+};
 
 // FileUploader
 interface FileUploaderProps {
