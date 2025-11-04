@@ -1,3 +1,4 @@
+
 import React, { ChangeEvent, ReactNode, useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { XIcon } from './Icons';
@@ -24,6 +25,8 @@ type ButtonOwnProps<C extends React.ElementType> = {
   // errors where the compiler would fail to correctly infer the presence of JSX children.
   children?: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
+  // FIX: Add size prop to support different button sizes.
+  size?: 'sm' | 'md';
 };
 
 type ButtonProps<C extends React.ElementType> = ButtonOwnProps<C> & Omit<React.ComponentPropsWithoutRef<C>, keyof ButtonOwnProps<C>>;
@@ -32,18 +35,23 @@ export const Button = <C extends React.ElementType = 'button'>({
   as,
   children,
   variant = 'primary',
+  size = 'md',
   className,
   ...props
 }: ButtonProps<C>) => {
   const Component = as || 'button';
-  const baseClasses = "px-4 py-2 rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2";
+  const baseClasses = "rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2";
   const variantClasses = {
     primary: 'bg-zinc-900 text-white hover:bg-zinc-700 focus:ring-zinc-500 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus:ring-zinc-400',
     secondary: 'bg-zinc-200 text-zinc-800 hover:bg-zinc-300 focus:ring-zinc-400 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:focus:ring-zinc-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
   };
+  const sizeClasses = {
+      sm: 'px-2 py-1 text-xs',
+      md: 'px-4 py-2 text-sm',
+  };
   
-  const finalClassName = `${baseClasses} ${variantClasses[variant]} ${className || ''}`.trim();
+  const finalClassName = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className || ''}`.trim();
 
   // FIX: Resolved TypeScript error "JSX element type 'Component' does not have any construct or call signatures."
   // Using React.createElement instead of JSX for the polymorphic component bypasses the JSX type-checking limitation.

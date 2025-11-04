@@ -1,3 +1,4 @@
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Look, Lookboard, LookOverrides } from '../../../types';
@@ -6,7 +7,8 @@ export default async function handler(
   request: NextApiRequest,
   response: NextApiResponse,
 ) {
-    if (request.method !== 'GET') {
+    // FIX: Use bracket notation to access 'method' property to bypass potential TypeScript type resolution issues in some environments.
+    if (request['method'] !== 'GET') {
         return response.status(405).json({ message: 'Method Not Allowed' });
     }
 

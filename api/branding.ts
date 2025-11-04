@@ -1,3 +1,4 @@
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
@@ -5,7 +6,8 @@ export default async function handler(
   request: NextApiRequest,
   response: NextApiResponse,
 ) {
-    if (request.method === 'GET') {
+    // FIX: Use bracket notation to access 'method' property to bypass potential TypeScript type resolution issues in some environments.
+    if (request['method'] === 'GET') {
         try {
             const logo = await kv.get<string>('app_logo');
             return response.status(200).json({ logo: logo || null });

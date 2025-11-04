@@ -1,3 +1,4 @@
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { User, Look, Lookboard, UserStats } from '../types';
@@ -9,7 +10,8 @@ export default async function handler(
 ) {
     // In a real app, you would add authentication here to ensure only admins can access this.
 
-    if (request.method === 'GET') {
+    // FIX: Use bracket notation to access 'method' property to bypass potential TypeScript type resolution issues in some environments.
+    if (request['method'] === 'GET') {
         const { action } = request.query;
         switch (action) {
             case 'get-pending-users':
@@ -21,7 +23,8 @@ export default async function handler(
         }
     }
 
-    if (request.method === 'POST') {
+    // FIX: Use bracket notation to access 'method' property to bypass potential TypeScript type resolution issues in some environments.
+    if (request['method'] === 'POST') {
         const { action } = request.body;
         switch (action) {
             case 'approve-user':
@@ -57,30 +60,37 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
         const statsPromises = validUsers.map(async (user) => {
             const looksKey = `looks:${user.email}`;
             const boardsKey = `lookboards:${user.email}`;
+            const publicLooksKey = 'public_looks_hash';
+            const publicBoardsKey = 'public_lookboards_hash';
 
-            const [rawLooks, rawPrivateBoards, publicBoardsMap] = await Promise.all([
+            const [rawPrivateLooks, rawPrivateBoards, publicLooksMap, publicBoardsMap] = await Promise.all([
                 kv.get<Look[]>(looksKey),
                 kv.get<Lookboard[]>(boardsKey),
-                kv.hgetall<Record<string, Lookboard>>('public_lookboards_hash'),
+                kv.hgetall<Record<string, Look>>(publicLooksKey),
+                kv.hgetall<Record<string, Lookboard>>(publicBoardsKey),
             ]);
 
-            // Defensively filter out null/malformed entries to prevent crashes
-            const looks = (rawLooks || []).filter((l): l is Look => l !== null && typeof l === 'object');
+            const safeParse = <T>(data: any): T | null => {
+                if (!data) return null;
+                if (typeof data === 'object') return data as T;
+                if (typeof data === 'string') {
+                    try { return JSON.parse(data) as T; } catch { return null; }
+                }
+                return null;
+            };
+            
+            const privateLooks = (rawPrivateLooks || []).filter((l): l is Look => l !== null && typeof l === 'object');
             const privateBoards = (rawPrivateBoards || []).filter((b): b is Lookboard => b !== null && typeof b === 'object');
 
+            const userPublicLooks = Object.values(publicLooksMap || {})
+                .map(lookData => safeParse<Look>(lookData))
+                .filter((look): look is Look => look !== null && look.createdBy === user.email);
+            
             const userPublicBoards = Object.values(publicBoardsMap || {})
-                .map(boardData => {
-                    if (!boardData) return null;
-                    try {
-                        const board = typeof boardData === 'string' ? JSON.parse(boardData) : boardData;
-                        if (board && typeof board === 'object' && board.id) {
-                            return board;
-                        }
-                        return null;
-                    } catch { return null; }
-                })
+                .map(boardData => safeParse<Lookboard>(boardData))
                 .filter((board): board is Lookboard => board !== null && board.createdBy === user.email);
 
+            const allLooks = [...privateLooks, ...userPublicLooks];
             const allBoards = [...privateBoards, ...userPublicBoards];
             
             let lastActivity = user.createdAt;
@@ -88,7 +98,7 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
             let variationCount = 0;
             let videoCount = 0;
 
-            looks.forEach(look => {
+            allLooks.forEach(look => {
                 if (look.createdAt > lastActivity) {
                     lastActivity = look.createdAt;
                 }
@@ -104,7 +114,7 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
                 }
             });
 
-            const lookCount = looks.length;
+            const lookCount = allLooks.length;
             const boardCount = allBoards.length;
             const looksPerBoard = boardCount > 0 ? lookCount / boardCount : 0;
             

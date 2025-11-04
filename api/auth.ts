@@ -1,3 +1,4 @@
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { User } from '../types';
@@ -9,7 +10,8 @@ export default async function handler(
   request: NextApiRequest,
   response: NextApiResponse,
 ) {
-    if (request.method !== 'POST') {
+    // FIX: Use bracket notation to access 'method' property to bypass potential TypeScript type resolution issues in some environments.
+    if (request['method'] !== 'POST') {
         return response.status(405).json({ message: 'Method Not Allowed' });
     }
 
