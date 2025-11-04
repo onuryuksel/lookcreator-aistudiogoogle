@@ -168,10 +168,11 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
             {filteredLooks.map(look => {
               const displayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
               const isVideo = displayImage.startsWith('data:video/') || displayImage.endsWith('.mp4');
+              const isSelected = selectedLookIds.has(look.id);
               return (
               <div 
                 key={look.id} 
-                className="relative group cursor-pointer break-inside-avoid"
+                className={`relative group cursor-pointer break-inside-avoid rounded-lg transition-all ${isSelected ? 'ring-4 ring-zinc-900 dark:ring-zinc-200 ring-inset' : ''}`}
               >
                 <div onClick={() => onSelectLook(look)}>
                   {isVideo ? (
@@ -196,9 +197,9 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
                     e.stopPropagation();
                     handleToggleLookSelection(look.id);
                   }}
-                  className="absolute top-3 left-3 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer bg-white/80 backdrop-blur-sm border border-zinc-300 dark:bg-zinc-900/80 dark:border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className={`absolute top-3 left-3 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer bg-white/80 backdrop-blur-sm border border-zinc-300 dark:bg-zinc-900/80 dark:border-zinc-700 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                 >
-                  {selectedLookIds.has(look.id) && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
+                  {isSelected && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
                 </div>
               </div>
               );
