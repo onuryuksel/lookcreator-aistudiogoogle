@@ -27,8 +27,24 @@ const BoardItem: React.FC<{
             .map(id => {
                 const look = lookMap.get(id);
                 if (!look) return null;
-                const finalImage = lookOverrides[id]?.finalImage || look.finalImage;
-                return { ...look, finalImage };
+                
+                const isVideo = (url: string | undefined): url is string => !!url && (url.startsWith('data:video/') || url.endsWith('.mp4'));
+
+                let displayImage = lookOverrides[id]?.finalImage || look.finalImage;
+
+                if (isVideo(displayImage)) {
+                    // The main image is a video. Find an image fallback for the thumbnail.
+                    // The source of truth for assets is the original `look` object.
+                    const allAssets = [look.finalImage, ...(look.variations || [])].filter(Boolean);
+                    const fallbackImage = allAssets.find(asset => !isVideo(asset));
+                    
+                    if (fallbackImage) {
+                        displayImage = fallbackImage;
+                    }
+                }
+                
+                // Overwrite finalImage for the purpose of rendering the thumbnail.
+                return { ...look, finalImage: displayImage };
             })
             .filter((l): l is Look => !!l);
     }, [board.lookIds, allUserLooks, lookOverrides]);
