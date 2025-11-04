@@ -103,9 +103,11 @@ async function getUserStats(request: NextApiRequest, response: NextApiResponse) 
                     lastActivity = look.createdAt;
                 }
                 productCount += look.products?.length || 0;
-                const variations = look.variations || [];
-                variationCount += variations.length;
-                videoCount += variations.filter(v => v && (v.endsWith('.mp4') || v.startsWith('data:video/'))).length;
+                variationCount += (look.variations || []).length;
+                
+                // Combine finalImage and variations to count all videos associated with the look
+                const allAssets = [look.finalImage, ...(look.variations || [])].filter(Boolean);
+                videoCount += allAssets.filter(asset => asset && (asset.endsWith('.mp4') || asset.startsWith('data:video/'))).length;
             });
 
             allBoards.forEach(board => {
