@@ -24,6 +24,7 @@ const getProductCategory = (product: OunassSKU): string => {
         if (cls.includes('hats')) return 'Headwear';
         if (cls.includes('sunglasses')) return 'Headwear';
         if (cls.includes('belts')) return 'Belts';
+        if (cls.includes('watches')) return 'Jewellery-Wrists'; // Handle watches
         if (cls.includes('necklaces')) return 'Jewellery-Neck';
         if (cls.includes('earrings')) return 'Jewellery-Ears';
         if (cls.includes('bracelets')) return 'Jewellery-Wrists';
@@ -62,6 +63,7 @@ const getProductCategory = (product: OunassSKU): string => {
     if (name.includes('bag')) return 'Bags';
     if (name.includes('shoe') || name.includes('sneaker') || name.includes('boot') || name.includes('sandal') || name.includes('heel')) return 'Footwear';
     if (name.includes('hat') || name.includes('sunglasses')) return 'Headwear';
+    if (name.includes('watch')) return 'Jewellery-Wrists'; // Handle watches in fallback
     if (name.includes('necklace')) return 'Jewellery-Neck';
     if (name.includes('earring')) return 'Jewellery-Ears';
     if (name.includes('bracelet')) return 'Jewellery-Wrists';
@@ -163,7 +165,7 @@ Composite the isolated hat (${productItemDescription}) onto the model's head. Th
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         case 'Jewellery-Wrists':
-            compositingInstruction = `Composite the isolated bracelet (${productItemDescription}) onto the model's wrist.`;
+            compositingInstruction = `Composite the isolated bracelet or watch (${productItemDescription}) onto the model's wrist.`;
             preservationInstruction += ` The model's existing clothing must be fully preserved.`
             break;
         case 'Jewellery-Hands':
@@ -205,12 +207,19 @@ Composite the isolated hat (${productItemDescription}) onto the model's head. Th
         ? `${wearingItemsList.join('\n      ')}`
         : 'None';
 
+    const ACCESSORY_CATEGORIES_FOR_MULTI_IMAGE = ['Headwear', 'Belts', 'Jewellery-Neck', 'Jewellery-Ears', 'Jewellery-Wrists', 'Jewellery-Hands', 'Accessory-Other'];
+    const isMultiImageAccessory = ACCESSORY_CATEGORIES_FOR_MULTI_IMAGE.includes(category);
+    
+    const garmentIsolationPreamble = isMultiImageAccessory && product.media.length > 1
+        ? `From the **multiple Product Images provided**, isolate ONLY the garment listed below. These images show the **SAME product** from different angles. You MUST analyze all of them to understand the product's full 3D shape, texture, details, and scale before compositing.`
+        : `From the **Product Image**, you must isolate ONLY the following garment:`;
+
     const VIRTUAL_TRY_ON_PROMPT = `You are a professional AI photo editor creating a composite image for a luxury fashion catalog. Your task is to realistically merge a garment from a product photo onto a model photo.
 
 **Objective:** Create a seamless, photorealistic composite.
 
 **Instructions:**
-1.  **Isolate Garment:** From the **Product Image**, you must isolate ONLY the following garment:
+1.  **Isolate Garment:** ${garmentIsolationPreamble}
     - **Product:** ${product.name}
     - **Type:** ${product.class} / ${product.subClass}
     - **IMPORTANT:** Ignore any other items styled in the product photo.
@@ -232,25 +241,26 @@ The final output must be a single, full-body image that is indistinguishable fro
 
   const imagePart = await urlToGenerativePart(baseImage);
   
-  // Directly fetch product image to avoid proxy issues, as Ounass CDN seems to allow it.
-  let productPart;
-  try {
-      const response = await fetch(product.media[0].src);
-      if (!response.ok) throw new Error(`Failed to fetch product image with status: ${response.status}`);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      const base64String = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-      });
-      productPart = base64ToGenerativePart(base64String, blob.type);
-  } catch (e) {
-      console.error("Failed to fetch product image directly, falling back to proxy...", e);
-      // Fallback or error handling can be added here if direct fetch fails.
-      // For now, re-throwing to indicate failure.
-      throw new Error(`Could not download product image for SKU ${product.sku}.`);
-  }
+  const productMediaToFetch = (isMultiImageAccessory && product.media.length > 1) ? product.media : [product.media[0]];
+  console.log(`[Virtual Try-On] Fetching ${productMediaToFetch.length} product image(s) for SKU ${product.sku}`);
+
+  const productParts = await Promise.all(productMediaToFetch.map(async (mediaItem) => {
+      try {
+          const response = await fetch(mediaItem.src);
+          if (!response.ok) throw new Error(`Failed to fetch product image with status: ${response.status}`);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          const base64String = await new Promise<string>((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+          return base64ToGenerativePart(base64String, blob.type);
+      } catch (e) {
+          console.error(`Failed to fetch product image ${mediaItem.src} directly for SKU ${product.sku}`, e);
+          throw new Error(`Could not download product image for SKU ${product.sku}.`);
+      }
+  }));
 
   console.log('[Virtual Try-On] Sending image generation request...');
   const response = await ai.models.generateContent({
@@ -259,7 +269,7 @@ The final output must be a single, full-body image that is indistinguishable fro
       parts: [
         { text: VIRTUAL_TRY_ON_PROMPT },
         imagePart, // model image
-        productPart, // product image
+        ...productParts, // product image(s)
       ],
     },
     config: {

@@ -78,6 +78,7 @@ const AppContent: React.FC = () => {
 
     const handleInstanceUpdate = async (updatedInstance: SharedLookboardInstance) => {
         if (!viewData?.instance) return;
+        const originalViewData = viewData;
         setViewData({ ...viewData, instance: updatedInstance }); // Optimistic UI update
 
         try {
@@ -100,7 +101,7 @@ const AppContent: React.FC = () => {
             console.error('Failed to update board instance:', error);
             showToast(error instanceof Error ? error.message : 'Could not save feedback.', 'error');
             // Revert optimistic update on failure
-            setViewData(viewData); 
+            setViewData(originalViewData); 
         }
     };
 
