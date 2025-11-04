@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lookboard, SharedLookboardInstance } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Lookboard, SharedLookboardInstance, Look, LookOverrides } from '../types';
 import { Card, Button } from './common';
 import { EditIcon, ShareIcon, TrashIcon, CopyIcon, ChevronDownIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,16 +8,35 @@ import { useToast } from '../contexts/ToastContext';
 const BoardItem: React.FC<{
   board: Lookboard;
   instances: SharedLookboardInstance[];
+  allUserLooks: Look[];
+  lookOverrides: LookOverrides;
   onDelete: (id: number) => void;
   onShare: (board: Lookboard) => void;
   onEdit: (board: Lookboard) => void;
   onDuplicate: (publicId: string) => void;
   isSaving: boolean;
-}> = ({ board, instances, onDelete, onShare, onEdit, onDuplicate, isSaving }) => {
+}> = ({ board, instances, allUserLooks, lookOverrides, onDelete, onShare, onEdit, onDuplicate, isSaving }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
     const isCreator = user?.email === board.createdBy;
     const [isLinksVisible, setIsLinksVisible] = useState(false);
+
+    const boardLooks = useMemo(() => {
+        const lookMap = new Map(allUserLooks.map(l => [l.id, l]));
+        return board.lookIds
+            .map(id => {
+                const look = lookMap.get(id);
+                if (!look) return null;
+                const finalImage = lookOverrides[id]?.finalImage || look.finalImage;
+                return { ...look, finalImage };
+            })
+            .filter((l): l is Look => !!l);
+    }, [board.lookIds, allUserLooks, lookOverrides]);
+
+    const MAX_THUMBNAILS = 5;
+    const visibleLooks = boardLooks.slice(0, MAX_THUMBNAILS);
+    const remainingLooksCount = boardLooks.length - visibleLooks.length;
+
 
     const handleCopy = (url: string, message: string) => {
         navigator.clipboard.writeText(url).then(() => {
@@ -29,15 +48,15 @@ const BoardItem: React.FC<{
 
     return (
         <Card className="flex flex-col">
-            <div className="flex justify-between items-center">
-                <div>
+            <div className="flex justify-between items-start">
+                <div className="flex-grow">
                     <h3 className="font-bold text-lg">{board.title}</h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         {(board.lookIds || []).length} looks &bull; 
                         {board.createdByUsername ? ` Created by ${board.createdByUsername}` : ''} on {new Date(board.createdAt).toLocaleDateString()}
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0 ml-4">
                     <Button variant="secondary" onClick={() => onDuplicate(board.publicId)} disabled={isSaving}>
                         <CopyIcon />
                         Duplicate
@@ -68,6 +87,30 @@ const BoardItem: React.FC<{
                     )}
                 </div>
             </div>
+
+            {visibleLooks.length > 0 && (
+                 <div className="mt-4">
+                    <div className="flex -space-x-2">
+                        {visibleLooks.map((look) => (
+                            <div key={look.id} className="h-12 w-12 flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 rounded-full border-2 border-white dark:border-zinc-900 overflow-hidden">
+                                <img
+                                    src={look.finalImage}
+                                    alt={`Look ${look.id}`}
+                                    className="w-full h-full object-cover"
+                                />
+                            </div>
+                        ))}
+                        {remainingLooksCount > 0 && (
+                            <div className="h-12 w-12 flex-shrink-0 bg-zinc-200 dark:bg-zinc-700 rounded-full border-2 border-white dark:border-zinc-900 flex items-center justify-center">
+                                <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                                    +{remainingLooksCount}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {(board.visibility === 'public' || isCreator) && (
                 <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">
                     <button onClick={() => setIsLinksVisible(!isLinksVisible)} className="w-full flex justify-between items-center text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
@@ -114,6 +157,8 @@ const BoardItem: React.FC<{
 interface LookboardsListProps {
   lookboards: Lookboard[];
   sharedInstances: Record<string, SharedLookboardInstance[]>;
+  allUserLooks: Look[];
+  lookOverrides: LookOverrides;
   onDelete: (id: number) => void;
   onShare: (board: Lookboard) => void;
   onEdit: (board: Lookboard) => void;
@@ -121,7 +166,7 @@ interface LookboardsListProps {
   isSaving: boolean;
 }
 
-const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, sharedInstances, onDelete, onShare, onEdit, onDuplicate, isSaving }) => {
+const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, sharedInstances, allUserLooks, lookOverrides, onDelete, onShare, onEdit, onDuplicate, isSaving }) => {
   if (lookboards.length === 0) {
     return (
       <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -138,6 +183,8 @@ const LookboardsList: React.FC<LookboardsListProps> = ({ lookboards, sharedInsta
             key={board.id}
             board={board}
             instances={sharedInstances[board.publicId] || []}
+            allUserLooks={allUserLooks}
+            lookOverrides={lookOverrides}
             onDelete={onDelete}
             onShare={onShare}
             onEdit={onEdit}

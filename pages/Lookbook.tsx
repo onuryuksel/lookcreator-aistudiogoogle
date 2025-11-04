@@ -172,9 +172,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
               return (
               <div 
                 key={look.id} 
-                className={`relative group cursor-pointer break-inside-avoid rounded-lg transition-all ${isSelected ? 'ring-4 ring-zinc-900 dark:ring-zinc-200 ring-inset' : ''}`}
+                className="relative group cursor-pointer break-inside-avoid rounded-lg transition-all"
               >
-                <div onClick={() => onSelectLook(look)}>
+                <div 
+                  onClick={() => onSelectLook(look)}
+                  className={`${isSelected ? 'ring-4 ring-zinc-900 dark:ring-zinc-200 ring-inset rounded-lg' : ''}`}
+                >
                   {isVideo ? (
                      <video 
                         src={displayImage} 
@@ -220,6 +223,8 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
            <LookboardsList 
               lookboards={lookboards} 
               sharedInstances={sharedInstances}
+              allUserLooks={looks}
+              lookOverrides={lookOverrides}
               onDelete={handleDeleteLookboard} 
               onShare={handleOpenShareOptions}
               onEdit={onEditLookboard}
