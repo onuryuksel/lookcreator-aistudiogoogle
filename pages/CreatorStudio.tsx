@@ -572,8 +572,8 @@ const CreatorStudio: React.FC = () => {
     const renderHeader = () => {
         const totalProposals = useMemo(() => {
             if (!proposals) return 0;
-            // FIX: Cast `val` to `MainImageProposal[]` to resolve a TypeScript error where the type was being inferred as `unknown`.
-            return Object.values(proposals).reduce((acc, val) => acc + (val as MainImageProposal[]).length, 0);
+            // FIX: Explicitly type the accumulator 'acc' as 'number' to resolve TS inference issue with reduce.
+            return Object.values(proposals).reduce((acc: number, val) => acc + (val as MainImageProposal[]).length, 0);
         }, [proposals]);
 
         return (
@@ -596,8 +596,13 @@ const CreatorStudio: React.FC = () => {
                     <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700"></div>
                     <Dropdown
                         trigger={
-                            <Button variant="secondary" className="p-2" aria-label="User Settings">
+                            <Button variant="secondary" className="p-2 relative" aria-label="User Settings">
                                 <SettingsIcon />
+                                {totalProposals > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white ring-2 ring-white dark:ring-zinc-950">
+                                        {totalProposals}
+                                    </span>
+                                )}
                             </Button>
                         }
                     >
