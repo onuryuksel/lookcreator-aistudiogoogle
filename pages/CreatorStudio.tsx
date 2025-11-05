@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides, SharedLookboardInstance } from '../types';
+import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides, SharedLookboardInstance, MainImageProposal } from '../types';
 import * as db from '../services/dbService';
 import * as dataService from '../services/dataService';
 import * as blobService from '../services/blobService';
@@ -39,6 +39,7 @@ const CreatorStudio: React.FC = () => {
     const [lookboards, setLookboards] = useState<Lookboard[]>([]);
     const [sharedInstances, setSharedInstances] = useState<Record<string, SharedLookboardInstance[]>>({});
     const [lookOverrides, setLookOverrides] = useState<LookOverrides>({});
+    const [proposals, setProposals] = useState<Record<number, MainImageProposal[]>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -125,10 +126,11 @@ const CreatorStudio: React.FC = () => {
         }
 
         try {
-            const { looks: serverLooks, lookboards: serverLookboards, overrides: serverOverrides } = await dataService.fetchServerData(user.email);
+            const { looks: serverLooks, lookboards: serverLookboards, overrides: serverOverrides, proposals: serverProposals } = await dataService.fetchServerData(user.email);
             setLooks(serverLooks);
             setLookboards(serverLookboards);
             setLookOverrides(serverOverrides || {});
+            setProposals(serverProposals || {});
         } catch (error) {
             console.error("Failed to load server data:", error);
             showToast("Could not load your data from the cloud.", "error");
@@ -462,7 +464,7 @@ const CreatorStudio: React.FC = () => {
     
     const handleUpdateLook = async (updatedLook: Look) => {
         const originalLook = looks.find(l => l.id === updatedLook.id);
-        if (!originalLook) return;
+        if (!originalLook || !user) return;
 
         // Optimistic UI update
         const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
@@ -471,7 +473,7 @@ const CreatorStudio: React.FC = () => {
             setActiveLook(updatedLook);
         }
     
-        const isCreator = user?.email === updatedLook.createdBy;
+        const isCreator = user.email === updatedLook.createdBy;
     
         if (isCreator) {
             await saveAllData(models, updatedLooks, lookboards, lookOverrides);
@@ -479,17 +481,32 @@ const CreatorStudio: React.FC = () => {
             // Non-creator can only add variations. Other changes will be ignored by this path.
             await handleAddVariationToLook(updatedLook, originalLook);
         }
+        await loadData(); // Reload all data to ensure consistency (e.g., proposals list is updated)
     };
 
-    const handleUpdateLookOverride = async (lookId: number, newFinalImage: string) => {
-        const updatedOverrides = {
-            ...lookOverrides,
-            [lookId]: { finalImage: newFinalImage },
-        };
+    const handleUpdateLookOverride = async (lookId: number, newFinalImage: string | null) => {
+        const lookToUpdate = looks.find(l => l.id === lookId);
+        if (!lookToUpdate || !user) return;
+
+        const updatedOverrides = { ...lookOverrides };
+        if (newFinalImage) {
+            updatedOverrides[lookId] = { finalImage: newFinalImage };
+        } else {
+            delete updatedOverrides[lookId];
+        }
+
         setLookOverrides(updatedOverrides);
-        // Save overrides separately for responsiveness
-        await dataService.saveOverrides(user!.email, updatedOverrides);
+        
+        const changeInfo = {
+            lookId: lookId,
+            creatorEmail: lookToUpdate.createdBy,
+            newFinalImage: newFinalImage,
+            username: user.username
+        };
+
+        await dataService.saveOverrides(user.email, updatedOverrides, changeInfo);
         showToast("Your view of this look has been updated.", "success");
+        await loadData(); // Reload all data to ensure consistency
     };
 
 
@@ -654,6 +671,7 @@ const CreatorStudio: React.FC = () => {
                 return activeLook ? <div className="p-6"><LookDetail 
                     look={activeLook} 
                     lookOverrides={lookOverrides}
+                    proposals={proposals}
                     onBack={() => setView('lookbook')} 
                     onDelete={handleDeleteLook}
                     onUpdate={handleUpdateLook}
