@@ -55,6 +55,7 @@ const CreatorStudio: React.FC = () => {
 
     // Look detail/edit state
     const [activeLook, setActiveLook] = useState<Look | null>(null);
+    const [scrollToProposalsOnLoad, setScrollToProposalsOnLoad] = useState(false);
 
     // Modals state
     const [isCreateModelModalOpen, setIsCreateModelModalOpen] = useState(false);
@@ -570,11 +571,19 @@ const CreatorStudio: React.FC = () => {
 
     // --- UI Rendering ---
     const renderHeader = () => {
-        const totalProposals = useMemo(() => {
-            if (!proposals) return 0;
-            // FIX: Explicitly type the accumulator 'acc' as 'number' to resolve TS inference issue with reduce.
-            return Object.values(proposals).reduce((acc: number, val) => acc + (val as MainImageProposal[]).length, 0);
-        }, [proposals]);
+        const allProposalsWithLook = useMemo(() => {
+            if (!proposals || !looks) return [];
+            const looksMap = new Map(looks.map(l => [l.id, l]));
+            return Object.entries(proposals).flatMap(([lookId, lookProposals]) => {
+                const look = looksMap.get(Number(lookId));
+                if (!look) return [];
+                // FIX: Cast `lookProposals` to `MainImageProposal[]` to resolve TypeScript error "Property 'map' does not exist on type 'unknown'".
+                // This is likely due to a type inference issue with `Object.entries` in this project's TypeScript configuration.
+                return (lookProposals as MainImageProposal[]).map(proposal => ({ proposal, look }));
+            });
+        }, [proposals, looks]);
+        
+        const totalProposals = allProposalsWithLook.length;
 
         return (
             <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
@@ -612,11 +621,27 @@ const CreatorStudio: React.FC = () => {
                         {totalProposals > 0 && (
                             <>
                                 <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
-                                <DropdownItem onClick={() => { setView('lookbook'); setActiveLookbookTab('looks'); }}>
-                                    <UsersIcon />
-                                    <span className="flex-grow">Main Image Proposals</span>
-                                    <span className="bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{totalProposals}</span>
-                                </DropdownItem>
+                                <div className="px-4 pt-2 pb-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase">Proposals ({totalProposals})</div>
+                                <div className="max-h-60 overflow-y-auto">
+                                {allProposalsWithLook.map(({ proposal, look }) => (
+                                    <DropdownItem 
+                                        key={`${look.id}-${proposal.proposedImage}`}
+                                        onClick={() => {
+                                            setActiveLook(look);
+                                            setView('look-detail');
+                                            setScrollToProposalsOnLoad(true);
+                                        }}
+                                        className="gap-2"
+                                    >
+                                        <img src={proposal.proposedImage} className="w-8 h-10 object-cover rounded-sm flex-shrink-0 bg-zinc-100 dark:bg-zinc-800" alt="Proposed" />
+                                        <div className="text-xs overflow-hidden flex-grow">
+                                            <p className="font-semibold truncate">New main for a look by {look.createdByUsername}</p>
+                                            <p className="text-zinc-500 dark:text-zinc-400">from {proposal.proposedByUsername}</p>
+                                        </div>
+                                        <img src={look.finalImage} className="w-8 h-10 object-cover rounded-sm flex-shrink-0 bg-zinc-100 dark:bg-zinc-800" alt="Original" />
+                                    </DropdownItem>
+                                ))}
+                                </div>
                             </>
                         )}
                         <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
@@ -705,6 +730,8 @@ const CreatorStudio: React.FC = () => {
                     onVideoCreation={() => setView('video-creation')}
                     onAddNewSku={() => setView('add-sku')}
                     isSaving={isSaving}
+                    scrollToProposals={scrollToProposalsOnLoad}
+                    onScrollComplete={() => setScrollToProposalsOnLoad(false)}
                 /></div> : null;
             case 'edit-look':
                  return activeLook ? <div className="p-6"><ConversationalEditPage

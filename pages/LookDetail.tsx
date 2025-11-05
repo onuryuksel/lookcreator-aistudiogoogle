@@ -25,9 +25,11 @@ interface LookDetailProps {
   onVideoCreation: () => void;
   onAddNewSku: () => void;
   isSaving: boolean;
+  scrollToProposals?: boolean;
+  onScrollComplete?: () => void;
 }
 
-const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals, onBack, onDelete, onUpdate, onUpdateOverride, onEdit, onLifestyleShoot, onVideoCreation, onAddNewSku, isSaving }) => {
+const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals, onBack, onDelete, onUpdate, onUpdateOverride, onEdit, onLifestyleShoot, onVideoCreation, onAddNewSku, isSaving, scrollToProposals, onScrollComplete }) => {
   const { user } = useAuth();
   const isCreator = user?.email === look.createdBy;
   
@@ -40,7 +42,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals,
   const { showToast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
-  const [isAccepting, setIsAccepting] = useState<string | null>(null);
+  const [processingProposal, setProcessingProposal] = useState<string | null>(null);
   const [newTag, setNewTag] = useState('');
 
   const [showProductLeftArrow, setShowProductLeftArrow] = useState(false);
@@ -73,6 +75,17 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals,
     setSelectedImage(newDisplayImage);
   }, [look.finalImage, look.id, lookOverrides]);
 
+   useEffect(() => {
+    if (scrollToProposals && proposalsRef.current) {
+      setTimeout(() => {
+        proposalsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (onScrollComplete) {
+            onScrollComplete();
+        }
+      }, 100);
+    }
+  }, [scrollToProposals, onScrollComplete]);
+
   const handleSetAsMain = async () => {
     if (isCreator) {
       // Creator updates the global finalImage
@@ -96,7 +109,7 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals,
   
   const handleAcceptProposal = async (proposal: MainImageProposal) => {
     if (!user) return;
-    setIsAccepting(proposal.proposedImage);
+    setProcessingProposal(proposal.proposedImage);
     try {
         const result = await dataService.acceptMainImageProposal(look.id, proposal, user.email);
         showToast(`Accepted proposal from ${proposal.proposedByUsername}. The main image has been updated for everyone.`, 'success');
@@ -105,7 +118,24 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals,
         console.error("Failed to accept proposal:", err);
         showToast(err instanceof Error ? err.message : "Could not accept proposal.", "error");
     } finally {
-        setIsAccepting(null);
+        setProcessingProposal(null);
+    }
+  };
+
+  const handleRejectProposal = async (proposal: MainImageProposal) => {
+    if (!user) return;
+    setProcessingProposal(proposal.proposedImage);
+    try {
+        await dataService.rejectMainImageProposal(look.id, proposal, user.email);
+        showToast(`Rejected proposal from ${proposal.proposedByUsername}.`, 'success');
+        // Trigger a reload by calling onUpdate with the original look data.
+        // The CreatorStudio will then call loadData() to refresh everything.
+        await onUpdate(look);
+    } catch (err) {
+        console.error("Failed to reject proposal:", err);
+        showToast(err instanceof Error ? err.message : "Could not reject proposal.", "error");
+    } finally {
+        setProcessingProposal(null);
     }
   };
 
@@ -481,14 +511,24 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, proposals,
                             <p className="text-sm font-semibold">Proposed by {proposal.proposedByUsername}</p>
                             <p className="text-xs text-zinc-500">{proposal.proposedByEmail}</p>
                         </div>
-                        <Button 
-                            variant="primary" 
-                            size="sm"
-                            onClick={() => handleAcceptProposal(proposal)}
-                            disabled={isSaving || !!isAccepting}
-                        >
-                            {isAccepting === proposal.proposedImage ? <Spinner /> : 'Accept'}
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <Button 
+                                variant="secondary" 
+                                size="sm"
+                                onClick={() => handleRejectProposal(proposal)}
+                                disabled={isSaving || !!processingProposal}
+                            >
+                                {processingProposal === proposal.proposedImage ? <Spinner /> : 'Reject'}
+                            </Button>
+                            <Button 
+                                variant="primary" 
+                                size="sm"
+                                onClick={() => handleAcceptProposal(proposal)}
+                                disabled={isSaving || !!processingProposal}
+                            >
+                                {processingProposal === proposal.proposedImage ? <Spinner /> : 'Accept'}
+                            </Button>
+                        </div>
                         </div>
                     ))}
                     </div>

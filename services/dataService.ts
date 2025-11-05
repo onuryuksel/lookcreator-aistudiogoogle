@@ -65,6 +65,20 @@ export const acceptMainImageProposal = async (lookId: number, proposal: MainImag
     return handleApiResponse(response);
 };
 
+export const rejectMainImageProposal = async (lookId: number, proposal: MainImageProposal, userEmail: string): Promise<void> => {
+    const response = await fetch('/api/board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'reject-main-image-proposal',
+            lookId,
+            proposal,
+            userEmail,
+        }),
+    });
+    await handleApiResponse(response);
+};
+
 
 // This is the main save function, it replaces the old saveServerData
 export const saveLargeData = async (email: string, models: Model[], looks: Look[], lookboards: Lookboard[], overrides: LookOverrides): Promise<void> => {

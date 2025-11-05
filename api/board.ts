@@ -29,12 +29,53 @@ export default async function handler(
             return await addVariationToLook(request, response);
         case 'accept-main-image-proposal':
             return await acceptMainImageProposal(request, response);
+        case 'reject-main-image-proposal':
+            return await rejectMainImageProposal(request, response);
         default:
             return response.status(400).json({ message: 'Invalid or missing action for POST request.' });
     }
 }
 
 // --- ACTION HANDLERS ---
+
+async function rejectMainImageProposal(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const { lookId, proposal, userEmail } = request.body as { lookId: number, proposal: MainImageProposal, userEmail: string };
+
+        if (!lookId || !proposal || !userEmail) {
+            return response.status(400).json({ message: 'Missing required fields: lookId, proposal, userEmail.' });
+        }
+        const emailLower = userEmail.toLowerCase();
+        
+        const proposalKey = `proposals_for_user:${emailLower}`;
+        const proposalsForCreator = await kv.get<Record<string, MainImageProposal[]>>(proposalKey) || {};
+        
+        let proposalsForLook = proposalsForCreator[String(lookId)] || [];
+
+        if (proposalsForLook.length === 0) {
+            return response.status(404).json({ message: 'Proposal not found.' });
+        }
+
+        // Filter out the specific proposal to be rejected
+        proposalsForLook = proposalsForLook.filter(p => 
+            !(p.proposedByEmail === proposal.proposedByEmail && p.proposedImage === proposal.proposedImage)
+        );
+
+        if (proposalsForLook.length > 0) {
+            proposalsForCreator[String(lookId)] = proposalsForLook;
+        } else {
+            delete proposalsForCreator[String(lookId)]; // Clean up if no proposals are left for this look
+        }
+
+        await kv.set(proposalKey, proposalsForCreator);
+
+        return response.status(200).json({ message: 'Proposal rejected successfully.' });
+
+    } catch (error) {
+        console.error('Error rejecting main image proposal:', error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
 
 async function acceptMainImageProposal(request: NextApiRequest, response: NextApiResponse) {
     try {
