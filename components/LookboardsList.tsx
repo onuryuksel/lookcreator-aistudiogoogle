@@ -25,8 +25,13 @@ const BoardItem: React.FC<{
         const lookMap = new Map(allUserLooks.map(l => [l.id, l]));
         return board.lookIds
             .map(id => {
-                const look = lookMap.get(id);
-                if (!look) return null;
+                const lookData = lookMap.get(id);
+                if (!lookData) return null;
+                
+                // FIX: Cast `lookData` to `Look` to resolve TypeScript errors.
+                // Type information is lost somewhere up the component tree, causing `lookData`
+                // to be inferred as `unknown`, which prevents property access.
+                const look = lookData as Look;
                 
                 const isVideo = (url: string | undefined): url is string => !!url && (url.startsWith('data:video/') || url.endsWith('.mp4'));
 

@@ -184,6 +184,13 @@ export interface LegacyLook {
 
 export type LookOverrides = Record<number, { finalImage: string }>;
 
+// NEW: For main image proposals by non-creators
+export interface MainImageProposal {
+    proposedByEmail: string;
+    proposedByUsername: string;
+    proposedImage: string;
+}
+
 // For Admin User Statistics
 export interface UserStats {
     user: User;

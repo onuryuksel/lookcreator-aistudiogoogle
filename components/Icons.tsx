@@ -1,6 +1,4 @@
 
-
-
 import React from 'react';
 
 const Icon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -222,5 +220,14 @@ export const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
         <circle cx="11" cy="11" r="8"></circle>
         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </Icon>
+);
+
+export const UsersIcon: React.FC = () => (
+    <Icon>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </Icon>
 );

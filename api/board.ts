@@ -1,7 +1,8 @@
 
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Lookboard, SharedLookboardInstance, User } from '../types';
+import { Look, Lookboard, SharedLookboardInstance, User, MainImageProposal } from '../types';
 import crypto from 'crypto';
 
 // --- MAIN HANDLER ---
@@ -24,12 +25,154 @@ export default async function handler(
             return await duplicateBoard(request, response);
         case 'update-board':
             return await updateBoard(request, response);
+        case 'add-variation-to-look':
+            return await addVariationToLook(request, response);
+        case 'accept-main-image-proposal':
+            return await acceptMainImageProposal(request, response);
         default:
             return response.status(400).json({ message: 'Invalid or missing action for POST request.' });
     }
 }
 
 // --- ACTION HANDLERS ---
+
+async function acceptMainImageProposal(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const { lookId, proposal, userEmail } = request.body as { lookId: number, proposal: MainImageProposal, userEmail: string };
+
+        if (!lookId || !proposal || !userEmail) {
+            return response.status(400).json({ message: 'Missing required fields: lookId, proposal, userEmail.' });
+        }
+        const emailLower = userEmail.toLowerCase();
+
+        // 1. Find the look
+        let look: Look | null = null;
+        let foundIn: 'public' | 'private' | null = null;
+        
+        const publicLooksKey = 'public_looks_hash';
+        const publicLookData = await kv.hget(publicLooksKey, String(lookId));
+        
+        if (publicLookData) {
+            const parsedLook = typeof publicLookData === 'string' ? JSON.parse(publicLookData) : publicLookData as Look;
+            // Ensure this public look belongs to the user trying to modify it
+            if (parsedLook.createdBy === emailLower) {
+                look = parsedLook;
+                foundIn = 'public';
+            }
+        }
+        
+        if (!look) {
+            const privateLookKey = `looks:${emailLower}`;
+            const userLooks = await kv.get<Look[]>(privateLookKey);
+            const privateLook = userLooks?.find(l => l.id === lookId);
+            if (privateLook) {
+                look = privateLook;
+                foundIn = 'private';
+            }
+        }
+
+        if (!look || !foundIn) {
+            return response.status(404).json({ message: 'Look not found or you do not have permission to edit it.' });
+        }
+
+        // 2. Update the look object
+        const oldFinalImage = look.finalImage;
+        const updatedLook: Look = {
+            ...look,
+            finalImage: proposal.proposedImage,
+            variations: [...new Set([...(look.variations || []), oldFinalImage])].filter(v => v !== proposal.proposedImage),
+        };
+
+        const pipeline = kv.pipeline();
+
+        // 3. Save the look back to its original location
+        if (foundIn === 'public') {
+            pipeline.hset(publicLooksKey, { [String(lookId)]: updatedLook });
+        } else { // 'private'
+            const privateLookKey = `looks:${emailLower}`;
+            const userLooks = (await kv.get<Look[]>(privateLookKey)) || [];
+            const updatedUserLooks = userLooks.map(l => l.id === lookId ? updatedLook : l);
+            pipeline.set(privateLookKey, updatedUserLooks);
+        }
+
+        // 4. Remove all proposals for this look ID for the creator
+        const proposalKey = `proposals_for_user:${emailLower}`;
+        const proposalsForCreator = await kv.get<Record<string, MainImageProposal[]>>(proposalKey) || {};
+        if (proposalsForCreator[String(lookId)]) {
+            delete proposalsForCreator[String(lookId)];
+            pipeline.set(proposalKey, proposalsForCreator);
+        }
+        
+        await pipeline.exec();
+
+        return response.status(200).json({ message: 'Proposal accepted and look updated.', updatedLook });
+
+    } catch (error) {
+        console.error('Error accepting main image proposal:', error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
+
+
+async function addVariationToLook(request: NextApiRequest, response: NextApiResponse) {
+    try {
+        const { lookId, createdBy, visibility, newVariations } = request.body;
+
+        if (!lookId || !createdBy || !visibility || !newVariations || !Array.isArray(newVariations) || newVariations.length === 0) {
+            return response.status(400).json({ message: 'Missing required fields: lookId, createdBy, visibility, newVariations.' });
+        }
+
+        let look: Look | null = null;
+        let foundIn: 'public' | 'private' | null = null;
+
+        // 1. Find the look
+        const publicLooksKey = 'public_looks_hash';
+        // Always check public first, as a user's local version might be stale.
+        const publicLookData = await kv.hget(publicLooksKey, String(lookId));
+        if (publicLookData) {
+            look = typeof publicLookData === 'string' ? JSON.parse(publicLookData) : publicLookData as Look;
+            foundIn = 'public';
+        }
+        
+        // If not found in public (or it's private), check the user's private store
+        if (!look && visibility === 'private') {
+            const privateLookKey = `looks:${createdBy.toLowerCase()}`;
+            const userLooks = await kv.get<Look[]>(privateLookKey);
+            const privateLook = userLooks?.find(l => l.id === lookId);
+            if (privateLook) {
+                look = privateLook;
+                foundIn = 'private';
+            }
+        }
+
+        if (!look || !foundIn) {
+            return response.status(404).json({ message: 'Look not found.' });
+        }
+        
+        // 2. Update the look
+        const updatedLook: Look = {
+            ...look,
+            variations: [...new Set([...(look.variations || []), ...newVariations])]
+        };
+
+        // 3. Save the look back where it was found
+        if (foundIn === 'public') {
+            await kv.hset(publicLooksKey, { [String(lookId)]: updatedLook });
+        } else { // 'private'
+            const privateLookKey = `looks:${createdBy.toLowerCase()}`;
+            const userLooks = (await kv.get<Look[]>(privateLookKey)) || [];
+            const updatedUserLooks = userLooks.map(l => l.id === lookId ? updatedLook : l);
+            await kv.set(privateLookKey, updatedUserLooks);
+        }
+
+        return response.status(200).json({ message: 'Variation added successfully.' });
+
+    } catch (error) {
+        console.error('Error adding variation to look:', error);
+        return response.status(500).json({ message: 'Internal Server Error' });
+    }
+}
+
 
 async function shareBoard(request: NextApiRequest, response: NextApiResponse) {
     try {

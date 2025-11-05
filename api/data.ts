@@ -1,7 +1,8 @@
 
+
 import { kv } from '@vercel/kv';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Look, Lookboard, LookOverrides } from '../types';
+import { Look, Lookboard, LookOverrides, MainImageProposal } from '../types';
 
 export default async function handler(
   request: NextApiRequest,
@@ -31,19 +32,22 @@ async function handleGet(request: NextApiRequest, response: NextApiResponse) {
         const overridesKey = `user_overrides:${emailLower}`;
         const publicLooksKey = 'public_looks_hash';
         const publicLookboardsKey = 'public_lookboards_hash';
+        const proposalsKey = `proposals_for_user:${emailLower}`;
 
         const [
             userLooks, 
             publicLooksMap, 
             userPrivateLookboards,
             publicLookboardsMap,
-            overrides
+            overrides,
+            proposals,
         ] = await Promise.all([
             kv.get<Look[]>(userLooksKey),
             kv.hgetall(publicLooksKey),
             kv.get<Lookboard[]>(boardsKey),
             kv.hgetall(publicLookboardsKey),
-            kv.get<LookOverrides>(overridesKey)
+            kv.get<LookOverrides>(overridesKey),
+            kv.get<Record<number, MainImageProposal[]>>(proposalsKey),
         ]);
         
         const combinedLooksMap = new Map<number, Look>();
@@ -120,6 +124,7 @@ async function handleGet(request: NextApiRequest, response: NextApiResponse) {
             looks: combinedLooks || [],
             lookboards: combinedLookboards || [],
             overrides: overrides || {},
+            proposals: proposals || {},
         });
 
     } catch (error) {
@@ -300,13 +305,50 @@ async function handleCommitChunks(request: NextApiRequest, response: NextApiResp
 
 async function handleSaveOverrides(request: NextApiRequest, response: NextApiResponse) {
     try {
-        const { email, overrides } = request.body;
+        const { email, overrides, changeInfo } = request.body;
         if (!email || typeof email !== 'string' || !overrides) {
             return response.status(400).json({ message: 'Email and overrides object are required.' });
         }
+        const emailLower = email.toLowerCase();
+        const overridesKey = `user_overrides:${emailLower}`;
+        
+        const pipeline = kv.pipeline();
+        pipeline.set(overridesKey, overrides);
 
-        const overridesKey = `user_overrides:${email.toLowerCase()}`;
-        await kv.set(overridesKey, overrides);
+        // Handle proposal logic if changeInfo is provided
+        if (changeInfo && changeInfo.creatorEmail) {
+            const { lookId, creatorEmail, newFinalImage, username } = changeInfo;
+            const creatorEmailLower = creatorEmail.toLowerCase();
+            
+            if (emailLower !== creatorEmailLower) {
+                const proposalKey = `proposals_for_user:${creatorEmailLower}`;
+                const proposalsForCreator = await kv.get<Record<string, MainImageProposal[]>>(proposalKey) || {};
+                let proposalsForLook = proposalsForCreator[String(lookId)] || [];
+
+                // Remove any existing proposal from this user for this look
+                proposalsForLook = proposalsForLook.filter(p => p.proposedByEmail !== emailLower);
+
+                // If a new image is set (not null), add a new proposal
+                if (newFinalImage) {
+                    const newProposal: MainImageProposal = {
+                        proposedByEmail: emailLower,
+                        proposedByUsername: username,
+                        proposedImage: newFinalImage
+                    };
+                    proposalsForLook.push(newProposal);
+                }
+
+                if (proposalsForLook.length > 0) {
+                    proposalsForCreator[String(lookId)] = proposalsForLook;
+                } else {
+                    delete proposalsForCreator[String(lookId)]; // Clean up if no proposals left
+                }
+                
+                pipeline.set(proposalKey, proposalsForCreator);
+            }
+        }
+        
+        await pipeline.exec();
 
         return response.status(200).json({ message: 'Overrides saved successfully.' });
     } catch (error) {

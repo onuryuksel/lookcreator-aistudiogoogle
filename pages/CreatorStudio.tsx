@@ -420,12 +420,64 @@ const CreatorStudio: React.FC = () => {
         setView('look-detail');
     };
 
+    const handleAddVariationToLook = async (updatedLook: Look, originalLook: Look) => {
+        if (!user) return;
+    
+        const originalVariations = new Set(originalLook.variations || []);
+        const newVariations = (updatedLook.variations || []).filter(v => !originalVariations.has(v));
+    
+        if (newVariations.length === 0) return;
+    
+        setIsSaving(true);
+        try {
+            const response = await fetch('/api/board', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'add-variation-to-look',
+                    lookId: updatedLook.id,
+                    createdBy: updatedLook.createdBy,
+                    visibility: updatedLook.visibility,
+                    newVariations: newVariations,
+                }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to add variation.');
+            }
+            showToast('Variation added and saved for everyone!', 'success');
+        } catch (error) {
+            console.error('Failed to add variation:', error);
+            showToast(error instanceof Error ? error.message : 'Could not save variation.', 'error');
+            // Revert optimistic UI update on failure
+            const revertedLooks = looks.map(l => l.id === originalLook.id ? originalLook : l);
+            setLooks(revertedLooks);
+            if (activeLook?.id === originalLook.id) {
+                setActiveLook(originalLook);
+            }
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
     const handleUpdateLook = async (updatedLook: Look) => {
+        const originalLook = looks.find(l => l.id === updatedLook.id);
+        if (!originalLook) return;
+
+        // Optimistic UI update
         const updatedLooks = looks.map(l => l.id === updatedLook.id ? updatedLook : l);
         setLooks(updatedLooks);
-        await saveAllData(models, updatedLooks, lookboards, lookOverrides);
         if (activeLook && activeLook.id === updatedLook.id) {
             setActiveLook(updatedLook);
+        }
+    
+        const isCreator = user?.email === updatedLook.createdBy;
+    
+        if (isCreator) {
+            await saveAllData(models, updatedLooks, lookboards, lookOverrides);
+        } else {
+            // Non-creator can only add variations. Other changes will be ignored by this path.
+            await handleAddVariationToLook(updatedLook, originalLook);
         }
     };
 

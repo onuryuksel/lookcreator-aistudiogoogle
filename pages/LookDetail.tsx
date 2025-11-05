@@ -46,8 +46,13 @@ const LookDetail: React.FC<LookDetailProps> = ({ look, lookOverrides, onBack, on
   const [isAspectRatioModalOpen, setIsAspectRatioModalOpen] = useState(false);
 
   const allImages = useMemo(() => {
-    return [...new Set([look.finalImage, ...(look.variations || [])])].filter(Boolean);
-  }, [look.finalImage, look.variations]);
+    const overrideImage = lookOverrides[look.id]?.finalImage;
+    const images = [look.finalImage, ...(look.variations || [])];
+    if (overrideImage) {
+        images.push(overrideImage);
+    }
+    return [...new Set(images)].filter(Boolean);
+  }, [look.finalImage, look.variations, lookOverrides, look.id]);
 
   const imageVariations = useMemo(() => {
     return allImages.filter(img => !(img.startsWith('data:video/') || img.endsWith('.mp4')));

@@ -1,5 +1,5 @@
 // FIX: Added `Model` to the import statement to resolve the TypeScript error "Cannot find name 'Model'".
-import { Model, Look, Lookboard, LegacyLook, OunassSKU, User, LookOverrides } from '../types';
+import { Model, Look, Lookboard, LegacyLook, OunassSKU, User, LookOverrides, MainImageProposal } from '../types';
 import * as db from './dbService';
 import * as ounassService from './ounassService';
 import { base64toBlob } from '../utils';
@@ -28,19 +28,24 @@ const handleApiResponse = async (response: Response) => {
     return responseText ? JSON.parse(responseText) : {};
 };
 
-export const fetchServerData = async (email: string): Promise<{ looks: Look[], lookboards: Lookboard[], overrides: LookOverrides }> => {
+export const fetchServerData = async (email: string): Promise<{ looks: Look[], lookboards: Lookboard[], overrides: LookOverrides, proposals: Record<number, MainImageProposal[]> }> => {
     const response = await fetch(`/api/data?email=${encodeURIComponent(email)}`);
     return handleApiResponse(response);
 };
 
-export const saveOverrides = async (email: string, overrides: LookOverrides): Promise<void> => {
+export const saveOverrides = async (
+    email: string, 
+    overrides: LookOverrides, 
+    changeInfo?: { lookId: number, creatorEmail: string, newFinalImage: string | null, username: string }
+): Promise<void> => {
     const response = await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             action: 'save-overrides', // API consolidation
             email, 
-            overrides 
+            overrides,
+            changeInfo, // NEW: Pass specific change info for proposal logic
         }),
     });
     await handleApiResponse(response);
