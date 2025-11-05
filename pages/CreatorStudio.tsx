@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Model, OunassSKU, TryOnStep, Look, Lookboard, LookOverrides, SharedLookboardInstance, MainImageProposal } from '../types';
 import * as db from '../services/dbService';
 import * as dataService from '../services/dataService';
@@ -21,7 +21,7 @@ import AddSkuPage from './AddSkuPage';
 
 import { Modal, Button, Spinner, Dropdown, DropdownItem } from '../components/common';
 import ModelCreationForm from '../components/ModelCreationForm';
-import { SaveIcon, SettingsIcon } from '../components/Icons';
+import { SaveIcon, SettingsIcon, UsersIcon } from '../components/Icons';
 import FullscreenImageViewer from '../components/FullscreenImageViewer';
 import SaveLookModal from '../components/SaveLookModal';
 import LookboardEditorModal from '../components/LookboardEditorModal';
@@ -569,42 +569,60 @@ const CreatorStudio: React.FC = () => {
     const selectedModel = models.find(m => m.id === selectedModelId);
 
     // --- UI Rendering ---
-    const renderHeader = () => (
-        <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
-            <h1 className="text-2xl font-bold">Ounass Look Creator</h1>
-            <div className="flex items-center gap-4">
-                 {isSaving && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-500 animate-pulse">
-                        <Spinner />
-                        <span>Saving to cloud...</span>
-                    </div>
-                )}
-                <nav className="flex gap-4">
-                    <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
-                    <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation', 'add-sku'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
-                    {user?.role === 'admin' && (
-                         <Button variant={'secondary'} onClick={() => window.location.href = '/admin'}>Admin Panel</Button>
+    const renderHeader = () => {
+        const totalProposals = useMemo(() => {
+            if (!proposals) return 0;
+            // FIX: Cast `val` to `MainImageProposal[]` to resolve a TypeScript error where the type was being inferred as `unknown`.
+            return Object.values(proposals).reduce((acc, val) => acc + (val as MainImageProposal[]).length, 0);
+        }, [proposals]);
+
+        return (
+            <header className="flex justify-between items-center p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-40">
+                <h1 className="text-2xl font-bold">Ounass Look Creator</h1>
+                <div className="flex items-center gap-4">
+                    {isSaving && (
+                        <div className="flex items-center gap-2 text-sm text-zinc-500 animate-pulse">
+                            <Spinner />
+                            <span>Saving to cloud...</span>
+                        </div>
                     )}
-                </nav>
-                <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700"></div>
-                 <Dropdown
-                    trigger={
-                        <Button variant="secondary" className="p-2" aria-label="User Settings">
-                            <SettingsIcon />
-                        </Button>
-                    }
-                >
-                    <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
-                    </div>
-                     <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
-                    <DropdownItem onClick={logout}>
-                        Logout
-                    </DropdownItem>
-                </Dropdown>
-            </div>
-        </header>
-    );
+                    <nav className="flex gap-4">
+                        <Button variant={view === 'creator' ? 'primary' : 'secondary'} onClick={() => setView('creator')}>Create</Button>
+                        <Button variant={['lookbook', 'look-detail', 'edit-look', 'lifestyle-shoot', 'video-creation', 'add-sku'].includes(view) ? 'primary' : 'secondary'} onClick={handleViewLookbook}>Lookbook ({looks.length})</Button>
+                        {user?.role === 'admin' && (
+                            <Button variant={'secondary'} onClick={() => window.location.href = '/admin'}>Admin Panel</Button>
+                        )}
+                    </nav>
+                    <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700"></div>
+                    <Dropdown
+                        trigger={
+                            <Button variant="secondary" className="p-2" aria-label="User Settings">
+                                <SettingsIcon />
+                            </Button>
+                        }
+                    >
+                        <div className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                            Signed in as <span className="font-medium text-zinc-800 dark:text-zinc-200">{user?.username}</span>
+                        </div>
+                        {totalProposals > 0 && (
+                            <>
+                                <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                                <DropdownItem onClick={() => { setView('lookbook'); setActiveLookbookTab('looks'); }}>
+                                    <UsersIcon />
+                                    <span className="flex-grow">Main Image Proposals</span>
+                                    <span className="bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{totalProposals}</span>
+                                </DropdownItem>
+                            </>
+                        )}
+                        <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+                        <DropdownItem onClick={logout}>
+                            Logout
+                        </DropdownItem>
+                    </Dropdown>
+                </div>
+            </header>
+        )
+    };
 
     const renderView = () => {
         if (isLoading) {
@@ -658,6 +676,7 @@ const CreatorStudio: React.FC = () => {
                     lookboards={lookboards} 
                     sharedInstances={sharedInstances}
                     lookOverrides={lookOverrides}
+                    proposals={proposals}
                     onSelectLook={handleSelectLook}
                     onUpdateLookboards={handleUpdateLookboards}
                     onEditLookboard={handleEditLookboard}

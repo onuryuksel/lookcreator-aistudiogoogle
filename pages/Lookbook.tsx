@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Look, Lookboard, LookOverrides, SharedLookboardInstance } from '../types';
+import { Look, Lookboard, LookOverrides, SharedLookboardInstance, MainImageProposal } from '../types';
 import * as db from '../services/dbService';
 import { Button, Input } from '../components/common';
 import LookboardsList from '../components/LookboardsList';
 import CreateLookboardModal from '../components/CreateLookboardModal';
 import ShareOptionsModal from '../components/ShareOptionsModal';
-import { PlusIcon, ShareIcon, SearchIcon } from '../components/Icons';
+import { PlusIcon, ShareIcon, SearchIcon, UsersIcon } from '../components/Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -14,6 +14,7 @@ interface LookbookProps {
   lookboards: Lookboard[];
   sharedInstances: Record<string, SharedLookboardInstance[]>;
   lookOverrides: LookOverrides;
+  proposals: Record<number, MainImageProposal[]>;
   onSelectLook: (look: Look) => void;
   onUpdateLookboards: (boards: Lookboard[]) => Promise<void>;
   onEditLookboard: (board: Lookboard) => void;
@@ -24,7 +25,7 @@ interface LookbookProps {
   onTabChange: (tab: 'looks' | 'boards') => void;
 }
 
-const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances, lookOverrides, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
+const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances, lookOverrides, proposals, onSelectLook, onUpdateLookboards, onEditLookboard, onDuplicateLookboard, isSaving, onGoToCreator, activeTab, onTabChange }) => {
   const [selectedLookIds, setSelectedLookIds] = useState<Set<number>>(new Set());
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -169,6 +170,8 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
               const displayImage = lookOverrides[look.id]?.finalImage || look.finalImage;
               const isVideo = displayImage.startsWith('data:video/') || displayImage.endsWith('.mp4');
               const isSelected = selectedLookIds.has(look.id);
+              const lookProposals = proposals[look.id] || [];
+              const isCreator = user?.email === look.createdBy;
               return (
               <div 
                 key={look.id} 
@@ -204,6 +207,12 @@ const Lookbook: React.FC<LookbookProps> = ({ looks, lookboards, sharedInstances,
                 >
                   {isSelected && <div className="w-3.5 h-3.5 bg-zinc-900 dark:bg-zinc-200 rounded-full"/>}
                 </div>
+                {isCreator && lookProposals.length > 0 && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-zinc-900 text-white rounded-full px-2 py-1 text-xs font-bold pointer-events-none">
+                        <UsersIcon />
+                        <span>{lookProposals.length}</span>
+                    </div>
+                )}
               </div>
               );
             })}
